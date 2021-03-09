@@ -28,6 +28,7 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/variadic_parallel_for_utils.hpp>
 
 #include <functional>
 #include <limits>
@@ -236,11 +237,11 @@ reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
 
 template <typename KernelName, typename KernelType, int Dims,
-          typename... Reductions, size_t... Is>
-void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range,
-                std::tuple<Reductions...> &ReduTuple,
-                std::index_sequence<Is...>);
+          typename... Reductions, size_t... RIs, typename... ItemViews,
+          size_t... DSIs>
+void varPFCGFunc(handler &, KernelType, const nd_range<Dims> &,
+                 std::tuple<Reductions...> &, std::index_sequence<RIs...>,
+                 std::tuple<ItemViews...> &, std::index_sequence<DSIs...>);
 
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
@@ -273,16 +274,6 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
-
-template <typename... ReductionT, size_t... Is>
-size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
-                             std::index_sequence<Is...>);
-
-template <typename TupleT, std::size_t... Is>
-std::tuple<std::tuple_element_t<Is, TupleT>...>
-tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
-
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace oneapi
@@ -445,7 +436,7 @@ private:
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
-  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&... Args) {
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
     set_arg(ArgIndex, std::move(Arg));
     setArgsHelper(++ArgIndex, std::move(Args)...);
   }
@@ -1204,7 +1195,7 @@ public:
   /// Registers pack of arguments(Args) with indexes starting from 0.
   ///
   /// \param Args are argument values to be set.
-  template <typename... Ts> void set_args(Ts &&... Args) {
+  template <typename... Ts> void set_args(Ts &&...Args) {
     setArgsHelper(0, std::move(Args)...);
   }
 
@@ -1433,7 +1424,8 @@ public:
   // seem efficient.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<Reduction::has_fast_atomics>
+  detail::enable_if_t<ext::oneapi::detail::IsReduction<Reduction>::value &&
+                      Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
@@ -1508,7 +1500,8 @@ public:
   /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<!Reduction::has_fast_atomics &&
+  detail::enable_if_t<ext::oneapi::detail::IsReduction<Reduction>::value &&
+                      !Reduction::has_fast_atomics &&
                       !Reduction::has_atomic_add_float64>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
@@ -1593,11 +1586,13 @@ public:
     }
   }
 
-  // This version of parallel_for may handle one or more reductions packed in
+  // This version of parallel_for may handle one or more reductions or data
+  // streams packed in
   // \p Rest argument. Note thought that the last element in \p Rest pack is
   // the kernel function.
-  // TODO: this variant is currently enabled for 2+ reductions only as the
-  // versions handling 1 reduction variable are more efficient right now.
+  // TODO: this variant is currently enabled for 2+ parameters or a single data
+  // stream only, as the versions handling 1 reduction variable are more
+  // efficient right now.
   //
   // Algorithm:
   // 1) discard_write accessor (DWAcc), InitializeToIdentity = true:
@@ -1630,18 +1625,33 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<
-      (sizeof...(RestT) >= 3 &&
-       ext::oneapi::detail::AreAllButLastReductions<RestT...>::value)>
+      ((sizeof...(RestT) >= 3 ||
+        (sizeof...(RestT) == 2 &&
+         ext::oneapi::detail::ReductionParamCount<RestT...>::value == 0)) &&
+       ext::oneapi::detail::AreAllButLastValidParam<RestT...>::value)>
   parallel_for(nd_range<Dims> Range, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
+    constexpr size_t NumRedus =
+        ext::oneapi::detail::ReductionParamCount<RestT...>::value;
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
-    auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+    auto ArgsIndices = std::make_index_sequence<NumArgs - 1>();
+
+    // Get reduction indices and elements.
+    typename ext::oneapi::detail::make_reduction_index_sequence<
+        decltype(ArgsTuple), decltype(ArgsIndices)>::type ReduArgIndices{};
     auto ReduTuple =
-        ext::oneapi::detail::tuple_select_elements(ArgsTuple, ReduIndices);
+        ext::oneapi::detail::tuple_select_elements(ArgsTuple, ReduArgIndices);
+    auto ReduTupleIndices = std::make_index_sequence<NumRedus>();
+
+    // Get item view indices and elements.
+    typename ext::oneapi::detail::make_item_view_index_sequence<
+        decltype(ArgsTuple), decltype(ArgsIndices)>::type ItemViewArgIndices{};
+    auto ItemViewTuple = ext::oneapi::detail::tuple_select_elements(
+        ArgsTuple, ItemViewArgIndices);
 
     size_t LocalMemPerWorkItem =
-        ext::oneapi::detail::reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+        ext::oneapi::detail::reduGetMemPerWorkItem(ReduTuple, ReduTupleIndices);
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel compiled
     // for the device.
@@ -1654,9 +1664,9 @@ public:
                                     std::to_string(MaxWGSize),
                                 PI_INVALID_WORK_GROUP_SIZE);
 
-    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
-                                                ReduTuple, ReduIndices);
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
+    varPFCGFunc<KernelName>(KernelFunc, Range, ReduTuple, ReduArgIndices,
+                            ItemViewTuple, ItemViewArgIndices);
+    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
@@ -1666,12 +1676,12 @@ public:
 
       NWorkItems =
           ext::oneapi::detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
-              AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
+              AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduTupleIndices);
       MLastEvent = AuxHandler.finalize();
     } // end while (NWorkItems > 1)
 
     auto CopyEvent = ext::oneapi::detail::reduSaveFinalResultToUserMem(
-        QueueCopy, MIsHost, ReduTuple, ReduIndices);
+        QueueCopy, MIsHost, ReduTuple, ReduTupleIndices);
     if (CopyEvent)
       MLastEvent = *CopyEvent;
   }
@@ -2467,6 +2477,152 @@ private:
       };
     }
   }
+
+  template <typename... ItemViews, size_t... Is>
+  std::tuple<typename ItemViews::accessor_type...>
+  getItemViewAccs(std::tuple<ItemViews...> &ItemViewTuple,
+                  std::index_sequence<Is...>) {
+    return {std::get<Is>(ItemViewTuple).access...};
+  }
+
+  template <typename KernelName, bool Pow2WG, bool IsOneWG, typename KernelType,
+            int Dims, typename... Reductions, size_t... RIs,
+            typename... ItemViews, size_t... DSIs>
+  void varPFCGFuncImpl(KernelType KernelFunc, const nd_range<Dims> &Range,
+                       std::tuple<Reductions...> &ReduTuple,
+                       std::index_sequence<RIs...>,
+                       std::tuple<ItemViews...> &ItemViewTuple,
+                       std::index_sequence<DSIs...>) {
+    auto ReduIndices = std::index_sequence_for<Reductions...>();
+    auto ItemViewIndices = std::index_sequence_for<ItemViews...>();
+    size_t WGSize = Range.get_local_range().size();
+    size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
+    auto LocalAccsTuple =
+        ext::oneapi::detail::createReduLocalAccs<Reductions...>(
+            LocalAccSize, *this, ReduIndices);
+
+    size_t NWorkGroups = IsOneWG ? 1 : Range.get_group_range().size();
+    auto OutAccsTuple = ext::oneapi::detail::createReduOutAccs<IsOneWG>(
+        NWorkGroups, *this, ReduTuple, ReduIndices);
+    auto IdentitiesTuple =
+        ext::oneapi::detail::getReduIdentities(ReduTuple, ReduIndices);
+    auto BOPsTuple = ext::oneapi::detail::getReduBOPs(ReduTuple, ReduIndices);
+    auto InitToIdentityProps = ext::oneapi::detail::getInitToIdentityProperties(
+        ReduTuple, ReduIndices);
+
+    auto ItemViewAccs = getItemViewAccs(ItemViewTuple, ItemViewIndices);
+
+    using Name = typename ext::oneapi::detail::get_reduction_main_kernel_name_t<
+        KernelName, KernelType, Pow2WG, IsOneWG, decltype(OutAccsTuple)>::name;
+    parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+      auto ReduIndices = std::index_sequence_for<Reductions...>();
+      auto ReducersTuple = ext::oneapi::detail::createReducers<Reductions...>(
+          IdentitiesTuple, BOPsTuple, ReduIndices);
+
+      // Read from all item views with read+ access
+      std::tuple<typename ItemViews::value_type...> ItemViewVals{};
+      auto ItemViewIndices = std::index_sequence_for<ItemViews...>();
+      auto ReadItemViewIndices =
+          ext::oneapi::detail::filterSequence<ItemViews...>(
+              ext::oneapi::detail::IsReadableItemViewPredicate{},
+              ItemViewIndices);
+      ext::oneapi::detail::readItemViewValueToTuple(NDIt.get_global_id(),
+                                                    ItemViewVals, ItemViewAccs,
+                                                    ReadItemViewIndices);
+
+      auto ProtectedItemViewVals = ext::oneapi::detail::getReferenceTuple(
+          ItemViewVals, ItemViewTuple, ItemViewIndices);
+
+      auto ArgTuple = std::tuple_cat(ReducersTuple, ProtectedItemViewVals);
+      auto ArgIndices = std::index_sequence<RIs..., DSIs...>();
+
+      // The .MValue field of each of the elements in ArgTuple
+      // gets initialized in this call.
+      ext::oneapi::detail::callUserKernelFunc(KernelFunc, NDIt, ArgTuple,
+                                              ArgIndices);
+
+      // Write back to all item views with write+ access
+      auto WriteItemViewIndices =
+          ext::oneapi::detail::filterSequence<ItemViews...>(
+              ext::oneapi::detail::IsWriteableItemViewPredicate{},
+              ItemViewIndices);
+      ext::oneapi::detail::writeTupleValueToItemView(
+          NDIt.get_global_id(), ItemViewAccs, ProtectedItemViewVals,
+          WriteItemViewIndices);
+
+      // Only finish reductions if there are any.
+      if (sizeof...(Reductions) > 0) {
+        size_t WGSize = NDIt.get_local_range().size();
+        size_t LID = NDIt.get_local_linear_id();
+        ext::oneapi::detail::initReduLocalAccs<Pow2WG>(
+            LID, WGSize, LocalAccsTuple, ReducersTuple, IdentitiesTuple,
+            ReduIndices);
+        NDIt.barrier();
+
+        size_t PrevStep = WGSize;
+        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+          if (LID < CurStep) {
+            // LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+            ext::oneapi::detail::reduceReduLocalAccs(
+                LID, LID + CurStep, LocalAccsTuple, BOPsTuple, ReduIndices);
+          } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
+            // LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep -
+            // 1]);
+            ext::oneapi::detail::reduceReduLocalAccs(
+                WGSize, PrevStep - 1, LocalAccsTuple, BOPsTuple, ReduIndices);
+          }
+          NDIt.barrier();
+          PrevStep = CurStep;
+        }
+
+        // Compute the partial sum/reduction for the work-group.
+        if (LID == 0) {
+          size_t GrID = NDIt.get_group_linear_id();
+          ext::oneapi::detail::writeReduSumsToOutAccs<Pow2WG, IsOneWG>(
+              GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
+              LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
+              ReduIndices);
+        }
+      }
+    });
+  }
+
+  template <typename KernelName, typename KernelType, int Dims,
+            typename... Reductions, size_t... RIs, typename... ItemViews,
+            size_t... DSIs>
+  void varPFCGFunc(KernelType KernelFunc, const nd_range<Dims> &Range,
+                   std::tuple<Reductions...> &ReduTuple,
+                   std::index_sequence<RIs...> ReduIndices,
+                   std::tuple<ItemViews...> &ItemViewTuple,
+                   std::index_sequence<DSIs...> ItemViewIndices) {
+    size_t WGSize = Range.get_local_range().size();
+    size_t NWorkGroups = Range.get_group_range().size();
+    bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
+    if (NWorkGroups == 1) {
+      // TODO: consider having only one variant of kernel instead of two here.
+      // Having two kernels, where one is just slighly more efficient than
+      // another, and only for the purpose of running 1 work-group may be too
+      // expensive.
+      if (Pow2WG)
+        varPFCGFuncImpl<KernelName, true, true>(KernelFunc, Range, ReduTuple,
+                                                ReduIndices, ItemViewTuple,
+                                                ItemViewIndices);
+      else
+        varPFCGFuncImpl<KernelName, false, true>(KernelFunc, Range, ReduTuple,
+                                                 ReduIndices, ItemViewTuple,
+                                                 ItemViewIndices);
+    } else {
+      if (Pow2WG)
+        varPFCGFuncImpl<KernelName, true, false>(KernelFunc, Range, ReduTuple,
+                                                 ReduIndices, ItemViewTuple,
+                                                 ItemViewIndices);
+      else
+        varPFCGFuncImpl<KernelName, false, false>(KernelFunc, Range, ReduTuple,
+                                                  ReduIndices, ItemViewTuple,
+                                                  ItemViewIndices);
+    }
+  }
 };
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

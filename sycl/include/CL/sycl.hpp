@@ -15,6 +15,7 @@
 #include <CL/sycl/backend.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>
+#include <CL/sycl/codeplay/item_view.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
