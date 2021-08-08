@@ -15,6 +15,7 @@
 #include <CL/sycl/kernel.hpp>
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -209,10 +210,26 @@ createReducers(ReduTupleT<typename Reductions::result_type...> Identities,
                                             std::get<Is>(BOPsTuple)}...};
 }
 
+template <typename KernelType, typename... Args> struct checkKernelSignature {
+  template <typename K>
+  static auto check(K *k)
+      -> decltype((*k)(std::declval<Args>()...), void(), std::true_type());
+  template <typename K> static auto check(...) -> decltype(std::false_type());
+  static constexpr bool value = decltype(check<KernelType>(0))::value;
+};
+
 template <typename KernelType, int Dims, typename... ArgT, size_t... Is>
 void callUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
                         std::tuple<ArgT...> &Args, std::index_sequence<Is...>) {
-  KernelFunc(NDIt, std::get<Is>(Args)...);
+  if constexpr (checkKernelSignature<KernelType, nd_item<Dims>,
+                                     decltype(std::get<Is>(Args))...>::value) {
+    KernelFunc(NDIt, std::get<Is>(Args)...);
+  } else {
+    static_assert(checkKernelSignature<KernelType, decltype(std::get<Is>(
+                                                       Args))...>::value &&
+                  "Kernel function does not have suitable parameters.");
+    KernelFunc(std::get<Is>(Args)...);
+  }
 }
 
 template <bool Pow2WG, typename... LocalAccT, typename... ReducerT,

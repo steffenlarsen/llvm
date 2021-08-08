@@ -18,7 +18,7 @@ bool test0(queue q) {
       auto aView = item_view<int, 1, access::mode::read_write>(aBuff, cgh);
 
       cgh.parallel_for<class add_one>(nd_range(range{N}, range{64}), aView,
-                                      [=](nd_item<1> item, int &a) { a += 1; });
+                                      [=](int &a) { a += 1; });
     });
   }
 
@@ -49,7 +49,7 @@ bool test1(queue q) {
       auto sumReduction = reduction(resAcc, plus<>());
       cgh.parallel_for<class fact>(
           nd_range(range{N}, range{64}), aView, sumReduction,
-          [=](nd_item<1> item, const int &a, auto &sum) { sum.combine(a); });
+          [=](const int &a, auto &sum) { sum.combine(a); });
     });
   }
 
@@ -79,10 +79,9 @@ bool test2(queue q) {
       auto bView = item_view<int, 1, access::mode::read>(bBuff, cgh);
       auto cView = item_view<int, 1, access::mode::write>(cBuff, cgh);
 
-      cgh.parallel_for<class vec_add>(nd_range(range{N}, range{64}), aView,
-                                      bView, cView,
-                                      [=](nd_item<1> item, const int &a,
-                                          const int &b, int &c) { c = a + b; });
+      cgh.parallel_for<class vec_add>(
+          nd_range(range{N}, range{64}), aView, bView, cView,
+          [=](const int &a, const int &b, int &c) { c = a + b; });
     });
   }
 
