@@ -2839,11 +2839,43 @@ pi_result piQueueFinish(pi_queue Queue) {
   // execute any command list that may still be open.
   if (auto Res = Queue->executeOpenCommandList())
     return Res;
-
+#if 0
   ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
   for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
     ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
   }
+
+  for (auto it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+
+    std::vector<pi_event> EList;
+    std::copy(it->second.EventList.begin(), it->second.EventList.end(), back_inserter(EList));
+
+    for (auto &E : EList) {
+      E->cleanup(Queue);
+    }
+
+//    Queue->resetCommandList(it, true);
+  }  
+
+#else
+  fprintf(stderr, "piQueueFinish #lists = %d\n", (int)Queue->CommandListMap.size());
+
+  for (auto it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+    
+    std::vector<pi_event> EList;
+    std::copy(it->second.EventList.begin(), it->second.EventList.end(), back_inserter(EList));
+
+    for (auto &E : EList) {
+      ZE_CALL(zeHostSynchronize, (E->ZeEvent));
+      E->cleanup(Queue);
+    }
+
+    //ZE_CALL(zeHostSynchronize, (it->second.ZeFence));
+    //Queue->resetCommandList(it, true);
+  }  
+#endif
 
   return PI_SUCCESS;
 }
