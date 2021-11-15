@@ -11511,6 +11511,8 @@ def err_sycl_x_y_z_arguments_must_be_one : Error<
 def err_sycl_attribute_internal_function
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def err_sycl_add_ir_attribute_not_two_divisible
+    : Error<"add_ir_attributes must have a number of arguments divisible by 2">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<

@@ -1434,6 +1434,15 @@ def SYCLIntelLoopFuse : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def SYCLAddIRAttributes : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_attributes">];
+  let Args = [VariadicExprArgument<"MetaNames">,
+              VariadicExprArgument<"MetaValues">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

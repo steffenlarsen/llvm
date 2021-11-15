@@ -423,12 +423,18 @@ unsigned Parser::ParseAttributeArgsCommon(
             Uneval ? Sema::ExpressionEvaluationContext::Unevaluated
                    : Sema::ExpressionEvaluationContext::ConstantEvaluated);
 
-        ExprResult ArgExpr(
-            Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression()));
+        ExprResult ArgExpr(ParseAssignmentExpression());
+        
+        if (Tok.is(tok::ellipsis))
+          ArgExpr = Actions.ActOnPackExpansion(ArgExpr.get(), ConsumeToken());
+
+        ArgExpr = Actions.CorrectDelayedTyposInExpr(ArgExpr.get());
+
         if (ArgExpr.isInvalid()) {
           SkipUntil(tok::r_paren, StopAtSemi);
           return 0;
         }
+
         ArgExprs.push_back(ArgExpr.get());
       }
       // Eat the comma, move to the next argument

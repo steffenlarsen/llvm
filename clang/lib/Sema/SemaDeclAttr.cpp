@@ -7004,6 +7004,50 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
 
+void Sema::AddSYCLAddIRAttributesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      MutableArrayRef<Expr *> MetaNameExprs,
+                                      MutableArrayRef<Expr *> MetaValueExprs) {
+  // TODO: Check that expressions evaluate to strings
+  D->addAttr(::new (Context) SYCLAddIRAttributesAttr(
+      Context, CI, MetaNameExprs.data(), MetaNameExprs.size(),
+      MetaValueExprs.data(), MetaValueExprs.size()));
+}
+
+SYCLAddIRAttributesAttr *
+Sema::MergeSYCLAddIRAttributesAttr(Decl *D, const SYCLAddIRAttributesAttr &A) {
+  SmallVector<Expr *, 4> NewMetaNameExprs(A.metaNames());
+  SmallVector<Expr *, 4> NewMetaValueExprs(A.metaValues());
+  if (const auto *DeclAttr = D->getAttr<SYCLAddIRAttributesAttr>()) {
+    // TODO: Return error if duplicates? Or maybe duplicates are okay?
+    NewMetaNameExprs.append(DeclAttr->metaNames().begin(),
+                            DeclAttr->metaNames().end());
+    NewMetaValueExprs.append(DeclAttr->metaValues().begin(),
+                             DeclAttr->metaValues().end());
+  }
+  return ::new (Context) SYCLAddIRAttributesAttr(
+      Context, A, NewMetaNameExprs.data(), NewMetaNameExprs.size(),
+      NewMetaValueExprs.data(), NewMetaValueExprs.size());
+}
+
+static void handleSYCLAddIRAttributesAttr(Sema &S, Decl *D,
+                                          const ParsedAttr &A) {
+  if (A.getNumArgs() % 2 > 0) {
+    S.Diag(A.getLoc(), diag::err_sycl_add_ir_attribute_not_two_divisible);
+    return;
+  }
+
+  SmallVector<Expr *, 4> MetaNameExprs, MetaValueExprs;
+  for (unsigned I = 0; I < A.getNumArgs() / 2; ++I) {
+    // TODO: Check that it evaluates to a string.
+    MetaNameExprs.push_back(A.getArgAsExpr(I));
+  }
+  for (unsigned I = A.getNumArgs() / 2; I < A.getNumArgs(); ++I) {
+    // TODO: Check that it evaluates to a string.
+    MetaValueExprs.push_back(A.getArgAsExpr(I));
+  }
+  S.AddSYCLAddIRAttributesAttr(D, A, MetaNameExprs, MetaValueExprs);
+}
+
 namespace {
 struct IntrinToName {
   uint32_t Id;
@@ -10275,6 +10319,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     handleSYCLIntelFPGAMaxConcurrencyAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRAttributes:
+    handleSYCLAddIRAttributesAttr(S, D, AL);
     break;
 
   // Swift attributes.

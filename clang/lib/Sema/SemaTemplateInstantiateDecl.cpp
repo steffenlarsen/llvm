@@ -764,6 +764,27 @@ static void instantiateSYCLIntelESimdVectorizeAttr(
     S.AddSYCLIntelESimdVectorizeAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLAddIRAttributesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRAttributesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  SmallVector<Expr *, 4> MetaNameExprs;
+  if (S.SubstExprs(
+          ArrayRef<Expr *>(A->metaNames().begin(), A->metaNames().end()),
+          /*IsCall=*/false, TemplateArgs, MetaNameExprs))
+    return;
+
+  SmallVector<Expr *, 4> MetaValueExprs;
+  if (S.SubstExprs(
+          ArrayRef<Expr *>(A->metaValues().begin(), A->metaValues().end()),
+          /*IsCall=*/false, TemplateArgs, MetaValueExprs))
+    return;
+
+  S.AddSYCLAddIRAttributesAttr(New, *A, MetaNameExprs, MetaValueExprs);
+}
+
 static void instantiateWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const WorkGroupSizeHintAttr *A, Decl *New) {
@@ -1033,6 +1054,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelESimdVectorizeAttr>(TmplAttr)) {
       instantiateSYCLIntelESimdVectorizeAttr(*this, TemplateArgs,
                                              SYCLIntelESimdVectorize, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRAttributes =
+            dyn_cast<SYCLAddIRAttributesAttr>(TmplAttr)) {
+      instantiateSYCLAddIRAttributesAttr(*this, TemplateArgs,
+                                         SYCLAddIRAttributes, New);
       continue;
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
