@@ -319,6 +319,16 @@ static bool attributeParsedArgsUnevaluated(const IdentifierInfo &II) {
 #undef CLANG_ATTR_ARG_CONTEXT_LIST
 }
 
+/// attributeParmPackArgsSupport - Return true if the attribute supports
+/// parameter pack expansion in its arguments.
+static bool attributeParmPackArgsSupport(const IdentifierInfo &II) {
+#define CLANG_ATTR_PARM_EXPANSION_ARGS_SUPPORT_LIST
+  return llvm::StringSwitch<bool>(normalizeAttrName(II.getName()))
+#include "clang/Parse/AttrParserStringSwitches.inc"
+           .Default(false);
+#undef CLANG_ATTR_PARM_EXPANSION_ARGS_SUPPORT_LIST
+}
+
 IdentifierLoc *Parser::ParseIdentifierLoc() {
   assert(Tok.is(tok::identifier) && "expected an identifier");
   IdentifierLoc *IL = IdentifierLoc::create(Actions.Context,
@@ -425,6 +435,18 @@ unsigned Parser::ParseAttributeArgsCommon(
 
         ExprResult ArgExpr(
             Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression()));
+
+        if (Tok.is(tok::ellipsis)) {
+          if (!attributeParmPackArgsSupport(*AttrName)) {
+            Diag(Tok.getLocation(),
+                 diag::err_attribute_argument_parm_pack_not_supported)
+                << AttrName;
+            SkipUntil(tok::r_paren, StopAtSemi);
+            return 0;
+          }
+          ArgExpr = Actions.ActOnPackExpansion(ArgExpr.get(), ConsumeToken());
+        }
+
         if (ArgExpr.isInvalid()) {
           SkipUntil(tok::r_paren, StopAtSemi);
           return 0;

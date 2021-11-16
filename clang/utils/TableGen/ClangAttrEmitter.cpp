@@ -1699,6 +1699,22 @@ static void emitClangAttrLateParsedList(RecordKeeper &Records, raw_ostream &OS) 
   OS << "#endif // CLANG_ATTR_LATE_PARSED_LIST\n\n";
 }
 
+// Emits the ParmExpansionArgsSupport property for attributes.
+static void emitClangAttrParmExpansionArgsSupportList(RecordKeeper &Records,
+                                                       raw_ostream &OS) {
+  OS << "#if defined(CLANG_ATTR_PARM_EXPANSION_ARGS_SUPPORT_LIST)\n";
+  std::vector<Record*> Attrs = Records.getAllDerivedDefinitions("Attr");
+
+  for (const auto *Attr : Attrs) {
+    if (Attr->getValueAsBit("ParmExpansionArgsSupport")) {
+      std::vector<FlattenedSpelling> Spellings = GetFlattenedSpellings(*Attr);
+      for (const auto &I : Spellings)
+        OS << ".Case(\"" << I.name() << "\", true)\n";
+    }
+  }
+  OS << "#endif // CLANG_ATTR_PARM_EXPANSION_ARGS_SUPPORT_LIST\n\n";
+}
+
 static bool hasGNUorCXX11Spelling(const Record &Attribute) {
   std::vector<FlattenedSpelling> Spellings = GetFlattenedSpellings(Attribute);
   for (const auto &I : Spellings) {
@@ -4244,6 +4260,7 @@ void EmitClangAttrParserStringSwitches(RecordKeeper &Records,
   emitClangAttrThisIsaIdentifierArgList(Records, OS);
   emitClangAttrTypeArgList(Records, OS);
   emitClangAttrLateParsedList(Records, OS);
+  emitClangAttrParmExpansionArgsSupportList(Records, OS);
 }
 
 void EmitClangAttrSubjectMatchRulesParserStringSwitches(RecordKeeper &Records,

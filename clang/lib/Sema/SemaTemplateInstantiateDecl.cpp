@@ -190,13 +190,9 @@ static void instantiateDependentAnnotationAttr(
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   SmallVector<Expr *, 4> Args;
-  Args.reserve(Attr->args_size());
-  for (auto *E : Attr->args()) {
-    ExprResult Result = S.SubstExpr(E, TemplateArgs);
-    if (!Result.isUsable())
-      return;
-    Args.push_back(Result.get());
-  }
+  if (S.SubstExprs(ArrayRef<Expr *>(Attr->args().begin(), Attr->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
   S.AddAnnotationAttr(New, *Attr, Attr->getAnnotation(), Args);
 }
 

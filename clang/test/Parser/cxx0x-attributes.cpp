@@ -258,8 +258,10 @@ void foo () {
   [[]] return;
 }
 
-template<typename...Ts> void variadic() {
+template<int...Is> void variadic() {
   void bar [[noreturn...]] (); // expected-error {{attribute 'noreturn' cannot be used as an attribute pack}}
+  void baz [[clang::no_sanitize(Is...)]] (); // expected-error {{attribute 'no_sanitize' does not support parameter pack expansion in arguments}}
+  void boo [[unknown::foo(Is...)]] (); // expected-warning {{unknown attribute 'foo' ignored}}
 }
 
 // Expression tests

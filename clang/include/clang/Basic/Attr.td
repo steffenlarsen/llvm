@@ -555,6 +555,9 @@ class Attr {
   //   match rules.
   // - It has GNU/CXX11 spelling and doesn't require delayed parsing.
   bit PragmaAttributeSupport;
+  // Set to true for attributes that support parameter pack expansion in its
+  // arguments.
+  bit ParmExpansionArgsSupport = 0;
   // Lists language options, one of which is required to be true for the
   // attribute to be applicable. If empty, no language options are required.
   list<LangOpt> LangOpts = [];
@@ -806,6 +809,7 @@ def Annotate : InheritableParamAttr {
   }
   }];
   let PragmaAttributeSupport = 1;
+  let ParmExpansionArgsSupport = 1;
   let Documentation = [Undocumented];
 }
 
