@@ -64,6 +64,24 @@ namespace PR9049 {
 template<typename T> [[clang::annotate("ANNOTATE_FOO"), clang::annotate("ANNOTATE_BAR")]] void HasAnnotations();
 void UseAnnotations() { HasAnnotations<int>(); }
 
+
+// CHECK:      FunctionTemplateDecl {{.*}} HasPackAnnotations
+// CHECK:        AnnotateAttr {{.*}} "ANNOTATE_BAZ"
+// CHECK:      FunctionDecl {{.*}} HasPackAnnotations
+// CHECK:        TemplateArgument{{.*}} pack
+// CHECK-NEXT:     TemplateArgument{{.*}} integral 1
+// CHECK-NEXT:     TemplateArgument{{.*}} integral 2
+// CHECK-NEXT:     TemplateArgument{{.*}} integral 3
+// CHECK:        AnnotateAttr {{.*}} "ANNOTATE_BAZ"
+// CHECK:          ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK:          ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 2
+// CHECK:          ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 3
+template<int... Is> [[clang::annotate("ANNOTATE_BAZ", Is...)]] void HasPackAnnotations();
+void UsePackAnnotations() { HasPackAnnotations<1, 2, 3>(); }
+
 namespace preferred_name {
   int x [[clang::preferred_name("frank")]]; // expected-error {{expected a type}}
   int y [[clang::preferred_name(int)]]; // expected-warning {{'preferred_name' attribute only applies to class templates}}

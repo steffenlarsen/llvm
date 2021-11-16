@@ -425,6 +425,10 @@ unsigned Parser::ParseAttributeArgsCommon(
 
         ExprResult ArgExpr(
             Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression()));
+
+        if (Tok.is(tok::ellipsis))
+          ArgExpr = Actions.ActOnPackExpansion(ArgExpr.get(), ConsumeToken());
+
         if (ArgExpr.isInvalid()) {
           SkipUntil(tok::r_paren, StopAtSemi);
           return 0;
