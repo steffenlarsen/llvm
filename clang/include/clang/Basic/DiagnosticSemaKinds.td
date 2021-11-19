@@ -11631,6 +11631,8 @@ def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
   "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
   "code">;
+def err_add_ir_attr_filter_list_invalid_arg : Error<
+  "Attribute '%0' only allows a filter list in the first argument">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

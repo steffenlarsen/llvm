@@ -2802,6 +2802,20 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
 }
 
+void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
+                                              const RecordDecl *RD) {
+  const auto *A = RD->getAttr<SYCLAddIRAttributesGlobalVariableAttr>();
+  assert(A && "no add_ir_attributes_global_variable attribute");
+  const Optional<llvm::SmallSet<StringRef, 4>> AttrFilter =
+      getAttributeFilters(A->args_begin(), A->args_size(), A);
+  const auto AttrBeginWithoutFilter = A->args_begin() + (AttrFilter ? 1 : 0);
+  const size_t AttrSizeWithoutFilter = A->args_size() - (AttrFilter ? 1 : 0);
+  const auto NameValuePairs = getValidAttributeNameValuePairs(
+      AttrBeginWithoutFilter, AttrSizeWithoutFilter, AttrFilter, A);
+  for (const auto NameValuePair : NameValuePairs)
+    GV->addAttribute(NameValuePair.first, NameValuePair.second);
+}
+
 bool CodeGenModule::isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                                        SourceLocation Loc) const {
   const auto &NoSanitizeL = getContext().getNoSanitizeList();
@@ -4754,6 +4768,163 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
   }
 }
 
+
+static Optional<std::string>
+getValidAttributeNameAsString(const Expr *NameE, const ASTContext &Context) {
+  if (const auto *NameLiteral = dyn_cast<StringLiteral>(NameE))
+    return NameLiteral->getString().str();
+
+  const auto *NameCE = dyn_cast<ConstantExpr>(NameE);
+  APValue NameLValue;
+  if (!NameCE || !NameCE->isCXX11ConstantExpr(Context, &NameLValue) ||
+      !NameLValue.isLValue())
+    return None;
+
+  const auto *NameValExpr = NameLValue.getLValueBase().dyn_cast<const Expr *>();
+  if (NameValExpr)
+    return getValidAttributeNameAsString(NameValExpr, Context);
+
+  const auto *NameValDecl =
+      NameLValue.getLValueBase().dyn_cast<const ValueDecl *>();
+  if (!NameValDecl)
+    return None;
+
+  const auto *NameVarDecl = dyn_cast<const VarDecl>(NameValDecl);
+  if (!NameVarDecl)
+    return None;
+
+  return getValidAttributeNameAsString(NameVarDecl->getInit(), Context);
+}
+
+static Optional<std::string>
+getValidAttributeValueAsString(const APValue Value, const ASTContext &Context,
+                               QualType ValueQType) {
+  assert(!Value.isLValue());
+  if (ValueQType->isCharType()) {
+    char C = static_cast<char>(Value.getInt().getExtValue());
+    return std::string(&C, 1);
+  }
+  if (ValueQType->isBooleanType())
+    return std::string(Value.getInt().getExtValue() ? "true" : "false");
+  if (ValueQType->isIntegerType() || ValueQType->isFloatingType() ||
+      ValueQType->isEnumeralType())
+    return Value.getAsString(Context, ValueQType);
+  return None;
+}
+
+static Optional<std::string>
+getValidAttributeValueAsString(const Expr *ValueE, const ASTContext &Context) {
+  if (ValueE->getType()->isNullPtrType())
+    return std::string("");
+  if (const auto *StringVal = dyn_cast<StringLiteral>(ValueE))
+    return StringVal->getString().str();
+  if (const auto *BoolVal = dyn_cast<CXXBoolLiteralExpr>(ValueE))
+    return std::string(BoolVal->getValue() ? "true" : "false");
+  if (const auto *FloatingVal = dyn_cast<FloatingLiteral>(ValueE))
+    return APValue(FloatingVal->getValue())
+        .getAsString(Context, ValueE->getType());
+  if (const auto *CharacterVal = dyn_cast<CharacterLiteral>(ValueE)) {
+    char C = static_cast<char>(CharacterVal->getValue());
+    return std::string(&C, 1);
+  }
+  if (const auto *IntegerVal = dyn_cast<IntegerLiteral>(ValueE)) {
+    SmallString<10> IntegerStrBuffer;
+    IntegerVal->getValue().toString(IntegerStrBuffer, 10,
+                                    ValueE->getType()->isSignedIntegerType());
+    return std::string(IntegerStrBuffer);
+  }
+
+  const auto *ValueCE = dyn_cast<ConstantExpr>(ValueE);
+  APValue ValueAPV;
+  if (!ValueCE || !ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
+    return None;
+
+  if (!ValueAPV.isLValue())
+    return getValidAttributeValueAsString(ValueAPV, Context,
+                                          ValueCE->getType());
+
+  if (ValueAPV.getLValueBase().isNull())
+    return std::string("");
+
+  const auto *ValueValExpr = ValueAPV.getLValueBase().dyn_cast<const Expr *>();
+  if (ValueValExpr)
+    return getValidAttributeValueAsString(ValueValExpr, Context);
+
+  const auto *ValueValDecl =
+      ValueAPV.getLValueBase().dyn_cast<const ValueDecl *>();
+  if (!ValueValDecl)
+    return None;
+
+  const auto *ValueVarDecl = dyn_cast<const VarDecl>(ValueValDecl);
+  if (!ValueVarDecl)
+    return None;
+
+  return getValidAttributeValueAsString(ValueVarDecl->getInit(), Context);
+}
+
+SmallVector<std::pair<std::string, std::string>, 4>
+CodeGenModule::getValidAttributeNameValuePairs(
+    Expr **AttributeExprs, const size_t AttributeExprsSize,
+    const Optional<llvm::SmallSet<StringRef, 4>> &AttributeNameFilter,
+    const Attr *Attribute) {
+  SmallVector<std::pair<std::string, std::string>, 4> Attrs;
+  if ((AttributeExprsSize & 1) != 0)
+    getDiags().Report(diag::err_sycl_add_ir_attribute_must_have_pairs)
+        << Attribute;
+
+  for (size_t I = 0; I < AttributeExprsSize / 2; ++I) {
+    const Optional<std::string> NameStr =
+        getValidAttributeNameAsString(AttributeExprs[I], Context);
+    if (!NameStr)
+      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_name)
+          << Attribute;
+
+    // If attribute name is empty then skip attribute
+    if (NameStr->empty())
+      continue;
+    
+    // If attribute name is not in the filter we skip it
+    if (AttributeNameFilter && !AttributeNameFilter->contains(*NameStr))
+      continue;
+
+    const Optional<std::string> ValueStr = getValidAttributeValueAsString(
+        AttributeExprs[I + AttributeExprsSize / 2], Context);
+    if (!ValueStr)
+      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_value)
+          << Attribute;
+
+    Attrs.push_back(std::pair<std::string, std::string>(*NameStr, *ValueStr));
+  }
+
+  return Attrs;
+}
+
+Optional<llvm::SmallSet<StringRef, 4>>
+CodeGenModule::getAttributeFilters(Expr **AttributeExprs,
+                                   const size_t AttributeExprsSize,
+                                   const Attr *Attribute) {
+  if (!AttributeExprsSize)
+    return None;
+
+  const auto *FilterListCE = dyn_cast<ConstantExpr>(AttributeExprs[0]);
+  if (!FilterListCE || !FilterListCE->getSubExpr())
+    return None;
+
+  const auto *FilterListE = dyn_cast<InitListExpr>(FilterListCE->getSubExpr());
+  if (!FilterListE)
+    return None;
+
+  llvm::SmallSet<StringRef, 4> Filter;
+  for (const Expr *FilterE : FilterListE->inits()) {
+    const auto *FilterStrLit = dyn_cast<StringLiteral>(FilterE);
+    if (!FilterStrLit)
+      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_filter)
+          << Attribute;
+    Filter.insert(FilterStrLit->getString());
+  }
+  return Filter;
+}
+
 /// Pass IsTentative as true if you want to create a tentative definition.
 void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
                                             bool IsTentative) {
@@ -4887,6 +5058,13 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   // Emit Intel FPGA attribute annotation for a file-scope static variable.
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
+
+  // Add IR attributes if add_ir_attribute_global_variable is attached to type
+  if (getLangOpts().SYCLIsDevice) {
+    const RecordDecl *RD = D->getType()->getAsRecordDecl();
+    if(RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
+      AddGlobalSYCLIRAttributes(GV, RD);
+  }
 
   if (D->getType().isRestrictQualified()) {
     llvm::LLVMContext &Context = getLLVMContext();

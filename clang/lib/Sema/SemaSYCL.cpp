@@ -570,7 +570,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr,
+                 SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -1651,8 +1652,12 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
       TemplateArgument TA = TAL.get(0);
-      llvm::DenseSet<QualType> Visited;
-      checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
+
+      // Parameter packs are used by properties so they are always valid
+      if (TA.getKind() != TemplateArgument::Pack) {
+        llvm::DenseSet<QualType> Visited;
+        checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
+      }
 
       if (TAL.size() > 5)
         return checkPropertyListType(TAL.get(5), Loc.getBegin());
@@ -2000,6 +2005,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
+
+      // Propagate add_ir_attributes_kernel_parameter attribute
+      if (const auto *AddIRAttr =
+              Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
+        Params.back()->addAttr(AddIRAttr->clone(SemaRef.getASTContext()));
+
       // FIXME: This code is temporary, and will be removed once __init_esimd
       // is removed and property list refactored.
       // The function handleAccessorType includes a call to
@@ -3925,6 +3936,11 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else {
       SYCLKernel->addAttr(A);
     }
+    break;
+  }
+  case attr::Kind::SYCLAddIRAttributesFunction: {
+    // TODO: Any checks here?
+    SYCLKernel->addAttr(A);
     break;
   }
   case attr::Kind::SYCLSimd:
