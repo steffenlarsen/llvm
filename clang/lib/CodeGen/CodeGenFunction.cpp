@@ -1101,6 +1101,46 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+    const Optional<llvm::SmallSet<StringRef, 4>> AttrFilter =
+        CGM.getAttributeFilters(A->args_begin(), A->args_size(), A);
+    const auto AttrBeginWithoutFilter = A->args_begin() + (AttrFilter ? 1 : 0);
+    const size_t AttrSizeWithoutFilter = A->args_size() - (AttrFilter ? 1 : 0);
+    const auto NameValuePairs = CGM.getValidAttributeNameValuePairs(
+        AttrBeginWithoutFilter, AttrSizeWithoutFilter, AttrFilter, A);
+
+    llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
+    for (const auto NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
+  }
+
+  if (getLangOpts().SYCLIsDevice && D) {
+    for (unsigned I = 0; I < Args.size(); ++I) {
+      // Get attribute from type record declaration
+      const VarDecl *ArgVD = Args[I];
+      if (!ArgVD || !ArgVD->hasAttr<SYCLAddIRAttributesKernelParameterAttr>())
+        continue;
+      const auto *A = ArgVD->getAttr<SYCLAddIRAttributesKernelParameterAttr>();
+      const Optional<llvm::SmallSet<StringRef, 4>> AttrFilter =
+          CGM.getAttributeFilters(A->args_begin(), A->args_size(), A);
+      const auto AttrBeginWithoutFilter =
+          A->args_begin() + (AttrFilter ? 1 : 0);
+      const size_t AttrSizeWithoutFilter =
+          A->args_size() - (AttrFilter ? 1 : 0);
+      const auto NameValuePairs = CGM.getValidAttributeNameValuePairs(
+          AttrBeginWithoutFilter, AttrSizeWithoutFilter, AttrFilter, A);
+
+      llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
+      for (const auto NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(I, KernelParamAttrBuilder);
+    }
+  }
+
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
     EmitOpenCLKernelMetadata(FD, Fn);

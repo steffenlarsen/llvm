@@ -375,4 +375,14 @@ def err_opencl_extension_and_feature_differs : Error<
   "options %0 and %1 are set to different values">;
 def err_opencl_feature_requires : Error<
   "feature %0 requires support of %1 feature">;
+
+// SYCL
+def err_sycl_add_ir_attribute_must_have_pairs : Error<
+  "%0 must have an attribute value for each attribute name">;
+def err_sycl_add_ir_attribute_invalid_name : Error<
+  "Attribute names in %0 must be a string literal or a constexpr const char *.">;
+def err_sycl_add_ir_attribute_invalid_value : Error<
+  "Attribute values in %0 must be an integer, floating point, character, boolean, const char *, or enum as either literal or constexpr value">;
+def err_sycl_add_ir_attribute_invalid_filter : Error<
+  "Filter list in %0 must contain only string literals">;
 }
