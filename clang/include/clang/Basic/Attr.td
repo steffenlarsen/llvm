@@ -1434,6 +1434,30 @@ def SYCLIntelLoopFuse : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def SYCLAddIRFunctionAttributes : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_function_attributes">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
+def SYCLAddIRKernelParameterAttributes : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_kernel_parameter_attributes">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice];
+  let Subjects = SubjectList<[Record], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
+def SYCLAddIRGlobalVariableAttributes : Attr {
+  let Spellings = [CXX11<"__sycl_detail__", "add_ir_global_variable_attributes">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice];
+  let Subjects = SubjectList<[Record], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

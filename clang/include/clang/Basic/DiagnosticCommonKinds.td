@@ -373,4 +373,12 @@ def err_opencl_extension_and_feature_differs : Error<
   "options %0 and %1 are set to different values">;
 def err_opencl_feature_requires : Error<
   "feature %0 requires support of %1 feature">;
+
+// SYCL
+def err_sycl_add_ir_attribute_not_two_divisible : Error<
+  "%0 must have a number of arguments divisible by 2">;
+def err_sycl_add_ir_attribute_invalid_name : Error<
+  "Attribute names in %0 must be a string literal or a constexpr const char *.">;
+def err_sycl_add_ir_attribute_invalid_value : Error<
+  "Attribute values in %0 must be an integer, floating point, character, boolean, const char *, or enum as either literal or constexpr value">;
 }

@@ -572,7 +572,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr,
+                 SYCLAddIRFunctionAttributesAttr>(A);
     });
   }
 }
@@ -3981,6 +3982,11 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else {
       SYCLKernel->addAttr(A);
     }
+    break;
+  }
+  case attr::Kind::SYCLAddIRFunctionAttributes: {
+    // TODO: Any checks here?
+    SYCLKernel->addAttr(A);
     break;
   }
   case attr::Kind::SYCLSimd:

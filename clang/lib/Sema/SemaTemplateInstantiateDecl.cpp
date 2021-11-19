@@ -760,6 +760,42 @@ static void instantiateSYCLIntelESimdVectorizeAttr(
     S.AddSYCLIntelESimdVectorizeAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLAddIRFunctionAttributesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRFunctionAttributesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args_begin(), A->args_end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRFunctionAttributesAttr(New, *A, Args);
+}
+
+static void instantiateSYCLAddIRKernelParameterAttributesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRKernelParameterAttributesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRKernelParameterAttributesAttr(New, *A, Args);
+}
+
+static void instantiateSYCLAddIRGlobalVariableAttributesAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLAddIRGlobalVariableAttributesAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 4> Args;
+  if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+  S.AddSYCLAddIRGlobalVariableAttributesAttr(New, *A, Args);
+}
+
 static void instantiateWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const WorkGroupSizeHintAttr *A, Decl *New) {
@@ -1029,6 +1065,24 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelESimdVectorizeAttr>(TmplAttr)) {
       instantiateSYCLIntelESimdVectorizeAttr(*this, TemplateArgs,
                                              SYCLIntelESimdVectorize, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRFunctionAttributes =
+            dyn_cast<SYCLAddIRFunctionAttributesAttr>(TmplAttr)) {
+      instantiateSYCLAddIRFunctionAttributesAttr(
+          *this, TemplateArgs, SYCLAddIRFunctionAttributes, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRKernelParameterAttributes =
+            dyn_cast<SYCLAddIRKernelParameterAttributesAttr>(TmplAttr)) {
+      instantiateSYCLAddIRKernelParameterAttributesAttr(
+          *this, TemplateArgs, SYCLAddIRKernelParameterAttributes, New);
+      continue;
+    }
+    if (const auto *SYCLAddIRGlobalVariableAttributes =
+            dyn_cast<SYCLAddIRGlobalVariableAttributesAttr>(TmplAttr)) {
+      instantiateSYCLAddIRGlobalVariableAttributesAttr(
+          *this, TemplateArgs, SYCLAddIRGlobalVariableAttributes, New);
       continue;
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {

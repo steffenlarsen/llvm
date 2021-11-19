@@ -1065,6 +1065,36 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
+  if (getLangOpts().SYCLIsDevice && D &&
+      D->hasAttr<SYCLAddIRFunctionAttributesAttr>()) {
+    const auto *A = D->getAttr<SYCLAddIRFunctionAttributesAttr>();
+    const auto NameValuePairs =
+        CGM.getValidAttributeNameValuePairs(A->args_begin(), A->args_size(), A);
+
+    llvm::AttrBuilder FnAttrBuilder;
+    for (const auto NameValuePair : NameValuePairs)
+      FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    Fn->addFnAttrs(FnAttrBuilder);
+  }
+
+  if (getLangOpts().SYCLIsDevice && D) {
+    for (unsigned I = 0; I < Args.size(); ++I) {
+      // Get attribute from type record declaration
+      const RecordDecl *ArgRD = Args[I]->getType()->getAsRecordDecl();
+      if (!ArgRD || !ArgRD->hasAttr<SYCLAddIRKernelParameterAttributesAttr>())
+        continue;
+      const auto *A = ArgRD->getAttr<SYCLAddIRKernelParameterAttributesAttr>();
+      const auto NameValuePairs = CGM.getValidAttributeNameValuePairs(
+          A->args_begin(), A->args_size(), A);
+
+      llvm::AttrBuilder KernelParamAttrBuilder;
+      for (const auto NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(I, KernelParamAttrBuilder);
+    }
+  }
+
   if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
     EmitOpenCLKernelMetadata(FD, Fn);

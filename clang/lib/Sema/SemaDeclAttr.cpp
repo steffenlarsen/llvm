@@ -7004,6 +7004,143 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
 
+// Returns true if an error occured.
+static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
+                                        Sema *S,
+                                        const AttributeCommonInfo &CI) {
+  ASTContext &Context = S->getASTContext();
+  llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
+  for (unsigned I = 0; I < ArgsSize; I++) {
+    Expr *&E = ArgsBegin[I];
+    assert(E && "error are handled before");
+    if (E->isValueDependent() || E->isTypeDependent())
+      continue;
+
+    if (E->getType()->isArrayType())
+      E = S->ImpCastExprToType(E, Context.getPointerType(E->getType()),
+                               clang::CK_ArrayToPointerDecay)
+              .get();
+    if (E->getType()->isFunctionType())
+      E = ImplicitCastExpr::Create(Context,
+                                   Context.getPointerType(E->getType()),
+                                   clang::CK_FunctionToPointerDecay, E, nullptr,
+                                   VK_PRValue, FPOptionsOverride());
+    if (E->isLValue())
+      E = ImplicitCastExpr::Create(Context, E->getType().getNonReferenceType(),
+                                   clang::CK_LValueToRValue, E, nullptr,
+                                   VK_PRValue, FPOptionsOverride());
+
+    Expr::EvalResult Eval;
+    Notes.clear();
+    Eval.Diag = &Notes;
+
+    bool Result = E->EvaluateAsConstantExpr(Eval, Context);
+
+    /// Result means the expression can be folded to a constant.
+    /// Note.empty() means the expression is a valid constant expression in the
+    /// current language mode.
+    if (!Result || !Notes.empty()) {
+      S->Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
+          << CI << (I + 1) << AANT_ArgumentConstantExpr;
+      for (auto &Note : Notes)
+        S->Diag(Note.first, Note.second);
+      return true;
+    }
+    assert(Eval.Val.hasValue());
+    E = ConstantExpr::Create(Context, E, Eval.Val);
+  }
+  return false;
+}
+
+void Sema::AddSYCLAddIRFunctionAttributesAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRFunctionAttributesAttr::Create(Context, Args.data(),
+                                                       Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+SYCLAddIRFunctionAttributesAttr *Sema::MergeSYCLAddIRFunctionAttributesAttr(
+    Decl *D, const SYCLAddIRFunctionAttributesAttr &A) {
+  SmallVector<Expr *, 4> NewArgs(A.args());
+  if (const auto *DeclAttr = D->getAttr<SYCLAddIRFunctionAttributesAttr>())
+    // FIXME: Return error if duplicates? Or maybe duplicates are okay?
+    NewArgs.append(DeclAttr->args_begin(), DeclAttr->args_end());
+  return ::new (Context) SYCLAddIRFunctionAttributesAttr(
+      Context, A, NewArgs.data(), NewArgs.size());
+}
+
+static void handleSYCLAddIRFunctionAttributesAttr(Sema &S, Decl *D,
+                                                  const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRFunctionAttributesAttr(D, A, Args);
+}
+
+void Sema::AddSYCLAddIRKernelParameterAttributesAttr(
+    Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRKernelParameterAttributesAttr::Create(
+      Context, Args.data(), Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+SYCLAddIRKernelParameterAttributesAttr *
+Sema::MergeSYCLAddIRKernelParameterAttributesAttr(
+    Decl *D, const SYCLAddIRKernelParameterAttributesAttr &A) {
+  SmallVector<Expr *, 4> NewArgs(A.args());
+  if (const auto *DeclAttr =
+          D->getAttr<SYCLAddIRKernelParameterAttributesAttr>())
+    // FIXME: Return error if duplicates? Or maybe duplicates are okay?
+    NewArgs.append(DeclAttr->args_begin(), DeclAttr->args_end());
+  return ::new (Context) SYCLAddIRKernelParameterAttributesAttr(
+      Context, A, NewArgs.data(), NewArgs.size());
+}
+
+static void handleSYCLAddIRKernelParameterAttributesAttr(Sema &S, Decl *D,
+                                                         const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRKernelParameterAttributesAttr(D, A, Args);
+}
+
+void Sema::AddSYCLAddIRGlobalVariableAttributesAttr(
+    Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRGlobalVariableAttributesAttr::Create(
+      Context, Args.data(), Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+static void handleSYCLAddIRGlobalVariableAttributesAttr(Sema &S, Decl *D,
+                                                        const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRGlobalVariableAttributesAttr(D, A, Args);
+}
+
 namespace {
 struct IntrinToName {
   uint32_t Id;
@@ -10275,6 +10412,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     handleSYCLIntelFPGAMaxConcurrencyAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRFunctionAttributes:
+    handleSYCLAddIRFunctionAttributesAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRKernelParameterAttributes:
+    handleSYCLAddIRKernelParameterAttributesAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRGlobalVariableAttributes:
+    handleSYCLAddIRGlobalVariableAttributesAttr(S, D, AL);
     break;
 
   // Swift attributes.

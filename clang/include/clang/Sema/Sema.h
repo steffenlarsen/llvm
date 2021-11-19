@@ -10532,6 +10532,20 @@ public:
                                 Expr *E);
   IntelFPGANumBanksAttr *
   MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A);
+  void AddSYCLAddIRFunctionAttributesAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          MutableArrayRef<Expr *> Args);
+  SYCLAddIRFunctionAttributesAttr *MergeSYCLAddIRFunctionAttributesAttr(
+      Decl *D, const SYCLAddIRFunctionAttributesAttr &A);
+  void AddSYCLAddIRKernelParameterAttributesAttr(Decl *D,
+                                                 const AttributeCommonInfo &CI,
+                                                 MutableArrayRef<Expr *> Args);
+  SYCLAddIRKernelParameterAttributesAttr *
+  MergeSYCLAddIRKernelParameterAttributesAttr(
+      Decl *D, const SYCLAddIRKernelParameterAttributesAttr &A);
+  void AddSYCLAddIRGlobalVariableAttributesAttr(Decl *D,
+                                                const AttributeCommonInfo &CI,
+                                                MutableArrayRef<Expr *> Args);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
