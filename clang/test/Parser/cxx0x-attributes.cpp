@@ -258,8 +258,18 @@ void foo () {
   [[]] return;
 }
 
-template<typename...Ts> void variadic() {
-  void bar [[noreturn...]] (); // expected-error {{attribute 'noreturn' cannot be used as an attribute pack}}
+template <int... Is> void variadic() {
+  void bar [[noreturn...]] ();                        // expected-error {{attribute 'noreturn' cannot be used as an attribute pack}}
+  void baz [[clang::no_sanitize(Is...)]] ();          // expected-error {{attribute 'no_sanitize' does not support pack expansion in arguments}}
+  void boz [[clang::annotate(Is...)]] ();             // expected-error {{pack expansion in 'annotate' is restricted to argument 2 or later}}
+  void bor [[clang::annotate("A", "V" ...)]] ();      // expected-error {{pack expansion does not contain any unexpanded parameter packs}}
+  void bir [[clang::annotate("B", {1, 2, 3, 4})]] (); // expected-error {{'annotate' attribute requires parameter 1 to be a constant expression}} expected-note {{subexpression not valid in a constant expression}}
+  void boo [[unknown::foo(Is...)]] ();                // expected-warning {{unknown attribute 'foo' ignored}}
+  void faz [[clang::annotate("C", (Is + ...))]] ();   // expected-warning {{pack fold expression is a C++17 extension}}
+  void far [[clang::annotate("D", Is...)]] ();
+  void foz [[clang::annotate("E", 1, 2, 3, Is...)]] ();
+  void fiz [[clang::annotate("F", Is..., 1, 2, 3)]] ();
+  void fir [[clang::annotate("G", 1, Is..., 2, 3)]] ();
 }
 
 // Expression tests

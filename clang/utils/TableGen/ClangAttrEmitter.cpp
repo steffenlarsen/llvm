@@ -1164,10 +1164,12 @@ namespace {
   };
 
   class VariadicExprArgument : public VariadicArgument {
+    bool AllowPack = false;
+
   public:
     VariadicExprArgument(const Record &Arg, StringRef Attr)
-      : VariadicArgument(Arg, Attr, "Expr *")
-    {}
+        : VariadicArgument(Arg, Attr, "Expr *"),
+          AllowPack(Arg.getValueAsBit("AllowPack")) {}
 
     void writeASTVisitorTraversal(raw_ostream &OS) const override {
       OS << "  {\n";
@@ -2274,6 +2276,47 @@ static void emitClangAttrThisIsaIdentifierArgList(RecordKeeper &Records,
   OS << "#endif // CLANG_ATTR_THIS_ISA_IDENTIFIER_ARG_LIST\n\n";
 }
 
+static void emitClangAttrNumArgs(RecordKeeper &Records, raw_ostream &OS) {
+  OS << "#if defined(CLANG_ATTR_NUM_ARGS)\n";
+  std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
+  for (const auto *A : Attrs) {
+    std::vector<Record *> Args = A->getValueAsListOfDefs("Args");
+    forEachUniqueSpelling(*A, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.name() << "\", " << Args.size() << ")\n";
+    });
+  }
+  OS << "#endif // CLANG_ATTR_NUM_ARGS\n\n";
+}
+
+static bool argSupportsParmPack(const Record *Arg) {
+  return !Arg->getSuperClasses().empty() &&
+         llvm::StringSwitch<bool>(
+             Arg->getSuperClasses().back().first->getName())
+             .Case("VariadicExprArgument", true)
+             .Default(false) &&
+         Arg->getValueAsBit("AllowPack");
+}
+
+static void emitClangAttrLastArgParmPackSupport(RecordKeeper &Records,
+                                                raw_ostream &OS) {
+  OS << "#if defined(CLANG_ATTR_LAST_ARG_PARM_PACK_SUPPORT)\n";
+  std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
+  for (const auto *A : Attrs) {
+    std::vector<Record *> Args = A->getValueAsListOfDefs("Args");
+    bool LastArgSupportsParmPack =
+        !Args.empty() && argSupportsParmPack(Args.back());
+    forEachUniqueSpelling(*A, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.name() << "\", " << LastArgSupportsParmPack
+         << ")\n";
+    });
+  }
+  OS << "#endif // CLANG_ATTR_LAST_ARG_PARM_PACK_SUPPORT\n\n";
+}
+
+static bool isArgVariadic(const Record &R, StringRef AttrName) {
+  return createArgument(R, AttrName)->isVariadic();
+}
+
 static void emitAttributes(RecordKeeper &Records, raw_ostream &OS,
                            bool Header) {
   std::vector<Record*> Attrs = Records.getAllDerivedDefinitions("Attr");
@@ -2329,6 +2372,18 @@ static void emitAttributes(RecordKeeper &Records, raw_ostream &OS,
     std::vector<Record*> ArgRecords = R.getValueAsListOfDefs("Args");
     std::vector<std::unique_ptr<Argument>> Args;
     Args.reserve(ArgRecords.size());
+
+    if (!ArgRecords.empty()) {
+      const bool LastArgSupportsPack = argSupportsParmPack(ArgRecords.back());
+      for (size_t I = 0; I < ArgRecords.size() - 1; ++I) {
+        assert((!LastArgSupportsPack ||
+                !isArgVariadic(*ArgRecords[I], R.getName())) &&
+               "Attributes supporting packs can only have the last "
+               "argument as variadic");
+        assert(!argSupportsParmPack(ArgRecords[I]) &&
+               "Only the last argument can allow packs");
+      }
+    }
 
     bool HasOptArg = false;
     bool HasFakeArg = false;
@@ -3399,10 +3454,6 @@ void EmitClangAttrParsedAttrList(RecordKeeper &Records, raw_ostream &OS) {
   }
 }
 
-static bool isArgVariadic(const Record &R, StringRef AttrName) {
-  return createArgument(R, AttrName)->isVariadic();
-}
-
 static void emitArgInfo(const Record &R, raw_ostream &OS) {
   // This function will count the number of arguments specified for the
   // attribute and emit the number of required arguments followed by the
@@ -4243,6 +4294,8 @@ void EmitClangAttrParserStringSwitches(RecordKeeper &Records,
   emitClangAttrIdentifierArgList(Records, OS);
   emitClangAttrVariadicIdentifierArgList(Records, OS);
   emitClangAttrThisIsaIdentifierArgList(Records, OS);
+  emitClangAttrNumArgs(Records, OS);
+  emitClangAttrLastArgParmPackSupport(Records, OS);
   emitClangAttrTypeArgList(Records, OS);
   emitClangAttrLateParsedList(Records, OS);
 }

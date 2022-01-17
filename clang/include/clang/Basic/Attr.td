@@ -205,7 +205,12 @@ class OMPTraitInfoArgument<string name> : Argument<name, 0>;
 class TypeArgument<string name, bit opt = 0> : Argument<name, opt>;
 class UnsignedArgument<string name, bit opt = 0> : Argument<name, opt>;
 class VariadicUnsignedArgument<string name> : Argument<name, 1>;
-class VariadicExprArgument<string name> : Argument<name, 1>;
+class VariadicExprArgument<string name, bit packs = 0> : Argument<name, 1> {
+  // Set to true if variadic expression argument supports parameter pack
+  // expansion. Setting this to true is only allowed if the argument is the last
+  // argument of the attribute.
+  bit AllowPack = packs;
+}
 class VariadicStringArgument<string name> : Argument<name, 1>;
 class VariadicIdentifierArgument<string name> : Argument<name, 1>;
 
@@ -792,7 +797,8 @@ def AnalyzerNoReturn : InheritableAttr {
 
 def Annotate : InheritableParamAttr {
   let Spellings = [Clang<"annotate">];
-  let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
+  let Args = [StringArgument<"Annotation">,
+              VariadicExprArgument<"Args", /*AllowPack*/1>];
   // Ensure that the annotate attribute can be used with
   // '#pragma clang attribute' even though it has no subject list.
   let AdditionalMembers = [{
