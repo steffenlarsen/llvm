@@ -189,15 +189,25 @@ static void instantiateDependentAnnotationAttr(
     const AnnotateAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  // If the attribute has delayed arguments it will have to instantiate those
+  // and handle them as new arguments for the attribute.
+  bool HasDelayedArgs = Attr->delayedArgs_size();
+
+  ArrayRef<Expr *> ArgsToInstantiate =
+      HasDelayedArgs
+          ? ArrayRef<Expr *>{Attr->delayedArgs_begin(), Attr->delayedArgs_end()}
+          : ArrayRef<Expr *>{Attr->args_begin(), Attr->args_end()};
+
   SmallVector<Expr *, 4> Args;
-  Args.reserve(Attr->args_size());
-  for (auto *E : Attr->args()) {
-    ExprResult Result = S.SubstExpr(E, TemplateArgs);
-    if (!Result.isUsable())
-      return;
-    Args.push_back(Result.get());
-  }
-  S.AddAnnotationAttr(New, *Attr, Attr->getAnnotation(), Args);
+  if (S.SubstExprs(ArgsToInstantiate,
+                   /*IsCall=*/false, TemplateArgs, Args))
+    return;
+
+  if (HasDelayedArgs)
+    S.HandleAnnotationAttr(New, *Attr, Args);
+  else
+    S.AddAnnotationAttr(New, *Attr, Attr->getAnnotation(), Args);
 }
 
 static Expr *instantiateDependentFunctionAttrCondition(

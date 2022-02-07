@@ -410,6 +410,25 @@ static bool checkFunctionOrMethodParameterIndex(
   return true;
 }
 
+/// Check if the argument \p E is a ASCII string literal. If not emit an error
+/// and return false, otherwise set \p Str to the value of the string literal
+/// and return true.
+bool Sema::checkStringLiteralExpr(const AttributeCommonInfo &CI, const Expr *E,
+                                  StringRef &Str, SourceLocation *ArgLocation) {
+  const auto *Literal = dyn_cast<StringLiteral>(E->IgnoreParenCasts());
+  if (ArgLocation)
+    *ArgLocation = E->getBeginLoc();
+
+  if (!Literal || !Literal->isAscii()) {
+    Diag(E->getBeginLoc(), diag::err_attribute_argument_type)
+        << CI << AANT_ArgumentString;
+    return false;
+  }
+
+  Str = Literal->getString();
+  return true;
+}
+
 /// Check if the argument \p ArgNum of \p Attr is a ASCII string literal.
 /// If not emit an error and return false. If the argument is an identifier it
 /// will emit an error with a fixit hint and treat it as if it was a string
@@ -432,18 +451,7 @@ bool Sema::checkStringLiteralArgumentAttr(const ParsedAttr &AL, unsigned ArgNum,
 
   // Now check for an actual string literal.
   Expr *ArgExpr = AL.getArgAsExpr(ArgNum);
-  const auto *Literal = dyn_cast<StringLiteral>(ArgExpr->IgnoreParenCasts());
-  if (ArgLocation)
-    *ArgLocation = ArgExpr->getBeginLoc();
-
-  if (!Literal || !Literal->isAscii()) {
-    Diag(ArgExpr->getBeginLoc(), diag::err_attribute_argument_type)
-        << AL << AANT_ArgumentString;
-    return false;
-  }
-
-  Str = Literal->getString();
-  return true;
+  return checkStringLiteralExpr(AL, ArgExpr, Str, ArgLocation);
 }
 
 /// Applies the given attribute to the Decl without performing any
@@ -5047,21 +5055,33 @@ void Sema::AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(Attr);
 }
 
-static void handleAnnotateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // Make sure that there is a string literal as the annotation's first
-  // argument.
+void Sema::HandleAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
+                                MutableArrayRef<Expr *> AllArgs) {
+  if (AllArgs.size() < 1) {
+    Diag(CI.getLoc(), diag::err_attribute_too_few_arguments) << CI << 1;
+    return;
+  }
+
   StringRef Str;
-  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str))
+  if (!checkStringLiteralExpr(CI, AllArgs[0], Str))
     return;
 
   llvm::SmallVector<Expr *, 4> Args;
-  Args.reserve(AL.getNumArgs() - 1);
-  for (unsigned Idx = 1; Idx < AL.getNumArgs(); Idx++) {
-    assert(!AL.isArgIdent(Idx));
-    Args.push_back(AL.getArgAsExpr(Idx));
-  }
+  Args.reserve(AllArgs.size() - 1);
+  for (unsigned I = 1; I < AllArgs.size(); ++I)
+    Args.push_back(AllArgs[I]);
 
-  S.AddAnnotationAttr(D, AL, Str, Args);
+  AddAnnotationAttr(D, CI, Str, Args);
+}
+
+static void handleAnnotateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  llvm::SmallVector<Expr *, 4> AllArgs;
+  AllArgs.reserve(AL.getNumArgs());
+  for (unsigned I = 0; I < AL.getNumArgs(); ++I) {
+    assert(!AL.isArgIdent(I));
+    AllArgs.push_back(AL.getArgAsExpr(I));
+  }
+  S.HandleAnnotationAttr(D, AL, AllArgs);
 }
 
 static void handleAlignValueAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -10021,6 +10041,37 @@ static bool IsDeclLambdaCallOperator(Decl *D) {
   return false;
 }
 
+// Returns true if the attribute must delay setting its arguments until after
+// template instantiation, and false otherwise.
+static bool MustDelayAttributeArguments(const ParsedAttr &AL) {
+  // Only attributes that accept expression parameter packs can delay arguments.
+  if (!AL.acceptsExprPack())
+    return false;
+
+  bool AttrHasVariadicArg = AL.hasVariadicArg();
+  unsigned AttrNumArgs = AL.getNumArgMembers();
+  for (size_t I = 0; I < std::min(AL.getNumArgs(), AttrNumArgs); ++I) {
+    bool IsLastAttrArg = I == (AttrNumArgs - 1);
+    // If the argument is the last argument and it is variadic it can contain
+    // any expression.
+    if (IsLastAttrArg && AttrHasVariadicArg)
+      return false;
+    Expr *E = AL.getArgAsExpr(I);
+    bool IsExprArg = AL.isExprArg(I);
+    // If the expression is a pack expansion then arguments must be delayed
+    // unless the argument is an expression and it is the last argument of the
+    // attribute.
+    if (isa<PackExpansionExpr>(E))
+      return !(IsLastAttrArg && IsExprArg);
+    // Last case is if the expression is value dependent then it must delay
+    // arguments unless the corresponding argument is able to hold the
+    // expression.
+    if (E->isValueDependent() && !IsExprArg)
+      return true;
+  }
+  return false;
+}
+
 /// ProcessDeclAttribute - Apply the specific attribute to the specified decl if
 /// the attribute applies to decls.  If the attribute is a type attribute, just
 /// silently ignore it if a GNU attribute.
@@ -10052,8 +10103,17 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     return;
   }
 
-  if (S.checkCommonAttributeFeatures(D, AL))
+  // Check if argument population must delayed to after template instantiation.
+  bool MustDelayArgs = MustDelayAttributeArguments(AL);
+
+  // Argument number check must be skipped if arguments are delayed.
+  if (S.checkCommonAttributeFeatures(D, AL, MustDelayArgs))
     return;
+
+  if (MustDelayArgs) {
+    AL.handleAttrWithDelayedArgs(S, D);
+    return;
+  }
 
   switch (AL.getKind()) {
   default:

@@ -49,8 +49,12 @@ struct ParsedAttrInfo {
   unsigned NumArgs : 4;
   /// The number of optional arguments of this attributes.
   unsigned OptArgs : 4;
+  /// The number of non-fake arguments specified in the attribute definition.
+  unsigned NumArgMembers : 4;
   /// True if the parsing does not match the semantic content.
   unsigned HasCustomParsing : 1;
+  // True if this attribute accepts expression parameter pack expansions.
+  unsigned AcceptsExprPack : 1;
   /// True if this attribute is only available for certain targets.
   unsigned IsTargetSpecific : 1;
   /// True if this attribute applies to types.
@@ -109,6 +113,8 @@ struct ParsedAttrInfo {
   spellingIndexToSemanticSpelling(const ParsedAttr &Attr) const {
     return UINT_MAX;
   }
+  // Check if argument at index I is an expression argument
+  virtual bool isExprArg(size_t N) const { return false; }
   /// Populate Rules with the match rules of this attribute.
   virtual void getPragmaAttributeMatchRules(
       llvm::SmallVectorImpl<std::pair<attr::SubjectMatchRule, bool>> &Rules,
@@ -604,9 +610,13 @@ public:
   bool isStmtAttr() const;
 
   bool hasCustomParsing() const;
+  bool acceptsExprPack() const;
+  bool isExprArg(size_t N) const;
   unsigned getMinArgs() const;
   unsigned getMaxArgs() const;
+  unsigned getNumArgMembers() const;
   bool hasVariadicArg() const;
+  void handleAttrWithDelayedArgs(Sema &S, Decl *D) const;
   bool diagnoseAppertainsTo(class Sema &S, const Decl *D) const;
   bool diagnoseAppertainsTo(class Sema &S, const Stmt *St) const;
   bool diagnoseMutualExclusion(class Sema &S, const Decl *D) const;
