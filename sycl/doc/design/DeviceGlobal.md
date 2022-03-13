@@ -638,8 +638,8 @@ depends upon implementation of that OpenCL extension.
 
 [10]: <opencl-extensions/cl_intel_global_variable_access.asciidoc>
 
-The CUDA backend has existing APIs `cuModuleGetGlobal()` and `cuMemcpyAsync()`
-which can be used to implement these PI interfaces.
+The CUDA backend has existing APIs `cuModuleGetGlobal()`, `cuMemcpyHtoDAsync()`,
+and `cuMemcpyDtoHAsync()` which can be used to implement these PI interfaces.
 
 
 ## Design choices

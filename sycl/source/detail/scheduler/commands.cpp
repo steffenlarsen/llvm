@@ -1701,6 +1701,12 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::Memset2DUSM:
     return "memset 2d usm";
     break;
+  case detail::CG::CopyToDeviceGlobal:
+    return "copy to device_global";
+    break;
+  case detail::CG::CopyFromDeviceGlobal:
+    return "copy from device_global";
+    break;
   default:
     return "unknown";
     break;
@@ -2157,6 +2163,24 @@ pi_int32 enqueueImpKernel(
             OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
   }
 
+  // We may need more events for the launch, so we make another reference.
+  std::vector<RT::PiEvent> &EventsWaitList = RawEvents;
+
+  // Initialize device globals associated with this.
+  std::vector<RT::PiEvent> DeviceGlobalInitEvents =
+      ContextImpl->initializeDeviceGlobals(Program, Queue);
+  std::vector<RT::PiEvent> EventsWithDeviceGlobalInits;
+  if (!DeviceGlobalInitEvents.empty()) {
+    EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
+                                        DeviceGlobalInitEvents.size());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       RawEvents.begin(), RawEvents.end());
+    EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
+                                       DeviceGlobalInitEvents.begin(),
+                                       DeviceGlobalInitEvents.end());
+    EventsWaitList = EventsWithDeviceGlobalInits;
+  }
+
   pi_result Error = PI_SUCCESS;
   ProgramManager::KernelArgMask EliminatedArgMask;
   if (nullptr == MSyclKernel || !MSyclKernel->isCreatedFromSource()) {
@@ -2168,11 +2192,11 @@ pi_int32 enqueueImpKernel(
     // For cacheable kernels, we use per-kernel mutex
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
+                                     NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   } else {
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, OutEvent,
+                                     NDRDesc, EventsWaitList, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   }
 
@@ -2571,6 +2595,25 @@ pi_int32 ExecCGCommand::enqueueImp() {
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
     return PI_SUCCESS;
+  }
+  case CG::CGTYPE::CopyToDeviceGlobal: {
+    CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_to_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::CopyFromDeviceGlobal: {
+    CGCopyFromDeviceGlobal *Copy =
+        (CGCopyFromDeviceGlobal *)MCommandGroup.get();
+    MemoryManager::copy_from_device_global(
+        Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
+        Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
+        Copy->getOSModuleHandle(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
   }
   case CG::CGTYPE::None:
     throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);

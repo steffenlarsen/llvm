@@ -187,6 +187,58 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+event queue_impl::memcpyToDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
+    const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
+    const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_to_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  RT::PiEvent NativeEvent{};
+  MemoryManager::copy_to_device_global(
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+      OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+      &NativeEvent);
+
+  if (MContext->is_host())
+    return MDiscardEvents ? createDiscardedEvent() : event();
+
+  event ResEvent = prepareUSMEvent(Self, NativeEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
+event queue_impl::memcpyFromDeviceGlobal(
+    const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
+    const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
+    size_t Offset, const std::vector<event> &DepEvents) {
+  if (MHasDiscardEventsSupport) {
+    MemoryManager::copy_from_device_global(
+        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+        OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext), nullptr);
+    return createDiscardedEvent();
+  }
+  RT::PiEvent NativeEvent{};
+  MemoryManager::copy_from_device_global(
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+      OSUtil::ExeModuleHandle, getOrWaitEvents(DepEvents, MContext),
+      &NativeEvent);
+
+  if (MContext->is_host())
+    return MDiscardEvents ? createDiscardedEvent() : event();
+
+  event ResEvent = prepareUSMEvent(Self, NativeEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  if (!MSupportOOO)
+    addSharedEvent(ResEvent);
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+}
+
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");

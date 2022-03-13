@@ -10,10 +10,12 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
@@ -45,8 +47,6 @@ namespace detail {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
-
-enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
@@ -118,25 +118,20 @@ ProgramManager::getDeviceImage(OSModuleHandle M, const std::string &KernelName,
   return getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
 }
 
-template <typename ExceptionT, typename RetT>
-RetT *waitUntilBuilt(KernelProgramCache &Cache,
-                     KernelProgramCache::BuildResult<RetT> *BuildResult) {
-  // any thread which will find nullptr in cache will wait until the pointer
-  // is not null anymore
-  Cache.waitUntilBuilt(*BuildResult, [BuildResult]() {
-    int State = BuildResult->State.load();
+RTDeviceBinaryImage &
+ProgramManager::getDeviceImage(OSModuleHandle M,
+                               const DeviceGlobalMapEntry *DeviceGlobalEntry,
+                               const context &Context, const device &Device,
+                               bool JITCompilationIsRequired) {
+  if (DbgProgMgr > 0)
+    std::cerr << ">>> ProgramManager::getDeviceImage(" << M
+              << ", (device_global)" << DeviceGlobalEntry->MDeviceGlobalPtr
+              << ", " << getRawSyclObjImpl(Context) << ", "
+              << getRawSyclObjImpl(Device) << ", " << JITCompilationIsRequired
+              << ")\n";
 
-    return State == BS_Done || State == BS_Failed;
-  });
-
-  if (BuildResult->Error.isFilledIn()) {
-    const KernelProgramCache::BuildError &Error = BuildResult->Error;
-    throw ExceptionT(Error.Msg, Error.Code);
-  }
-
-  RetT *Result = BuildResult->Ptr.load();
-
-  return Result;
+  return getDeviceImage(M, DeviceGlobalEntry->MImageIdentifier, Context, Device,
+                        JITCompilationIsRequired);
 }
 
 /// Try to fetch entity (kernel or program) from cache. If there is no such
@@ -158,38 +153,28 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 ///         cache. Accepts nothing. Return pointer to built entity.
 ///
 /// \return a pointer to cached build result, return value must not be nullptr.
-template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
-          typename GetCacheFT, typename BuildFT>
+template <typename RetT, typename ExceptionT, typename GetCachedBuildFT,
+          typename BuildFT>
 KernelProgramCache::BuildResult<RetT> *
-getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
-           GetCacheFT &&GetCache, BuildFT &&Build) {
-  bool InsertionTookPlace;
-  KernelProgramCache::BuildResult<RetT> *BuildResult;
+getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
+           BuildFT &&Build) {
+  using BuildState = KernelProgramCache::BuildState;
 
-  {
-    auto LockedCache = Acquire(KPCache);
-    auto &Cache = GetCache(LockedCache);
-    auto Inserted =
-        Cache.emplace(std::piecewise_construct, std::forward_as_tuple(CacheKey),
-                      std::forward_as_tuple(nullptr, BS_InProgress));
-
-    InsertionTookPlace = Inserted.second;
-    BuildResult = &Inserted.first->second;
-  }
+  auto [BuildResult, InsertionTookPlace] = GetCachedBuild();
 
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
     for (;;) {
-      RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
+      RetT *Result = KPCache.waitUntilBuilt<ExceptionT>(BuildResult);
 
       if (Result)
         return BuildResult;
 
       // Previous build is failed. There was no SYCL exception though.
       // We might try to build once more.
-      int Expected = BS_Failed;
-      int Desired = BS_InProgress;
+      BuildState Expected = BuildState::BS_Failed;
+      BuildState Desired = BuildState::BS_InProgress;
 
       if (BuildResult->State.compare_exchange_strong(Expected, Desired))
         break; // this thread is the building thread now
@@ -214,7 +199,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
       // Even if shared variable is atomic, it must be modified under the mutex
       // in order to correctly publish the modification to the waiting thread
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Done);
+      BuildResult->State.store(BuildState::BS_Done);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -226,7 +211,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Failed);
+      BuildResult->State.store(BuildState::BS_Failed);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -235,7 +220,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
   } catch (...) {
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
-      BuildResult->State.store(BS_Failed);
+      BuildResult->State.store(BuildState::BS_Failed);
     }
 
     KPCache.notifyAllBuild(*BuildResult);
@@ -360,6 +345,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
     NativePrograms[Res] = &Img;
   }
 
+  Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
+
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
@@ -424,6 +411,13 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
     // is fixed
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  if (Img.getDeviceGlobals().size() != 0) {
+    // If the image has device globals we need to add the
+    // -ze-take-global-address option to tell IGC to record addresses of these.
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-ze-take-global-address";
   }
 }
 
@@ -504,16 +498,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   KernelSetId KSId = getKernelSetId(M, KernelName);
 
   using PiProgramT = KernelProgramCache::PiProgramT;
-  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireCachedPrograms();
-  };
-  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
-    return LockedCache.get();
-  };
 
   std::string CompileOpts;
   std::string LinkOpts;
@@ -635,6 +621,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       NativePrograms[BuiltProgram.get()] = &Img;
     }
 
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), {Device}, &Img);
+
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
@@ -642,14 +630,18 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
-  const RT::PiDevice PiDevice = Dev->getHandleRef();
-
   uint32_t ImgId = Img.getImageID();
-  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache,
+  const RT::PiDevice PiDevice = Dev->getHandleRef();
+  auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      AcquireF, GetF, BuildF);
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+
+  auto GetCachedBuildF = [&Cache, &CacheKey]() {
+    return Cache.getOrInsertProgram(CacheKey);
+  };
+
+  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   return BuildResult->Ptr.load();
@@ -668,8 +660,6 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   }
 
   using PiKernelT = KernelProgramCache::PiKernelT;
-  using KernelCacheT = KernelProgramCache::KernelCacheT;
-  using KernelByNameT = KernelProgramCache::KernelByNameT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
@@ -691,13 +681,6 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   RT::PiProgram Program =
       getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireKernelsPerProgramCache();
-  };
-  auto GetF =
-      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
-    return LockedCache.get()[Program];
-  };
   auto BuildF = [&Program, &KernelName, &ContextImpl] {
     PiKernelT *Result = nullptr;
 
@@ -713,8 +696,12 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return Result;
   };
 
+  auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
+    return Cache.getOrInsertKernel(Program, KernelName);
+  };
+
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, KernelName, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   auto ret_val = std::make_tuple(BuildResult->Ptr.load(),
@@ -1307,17 +1294,21 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
           assert(DeviceGlobalInfo.empty() && "Extra data left!");
 
+          // Give the image pointer as an identifier for the image the
+          // device-global is associated with.
+          uintptr_t ImgId = reinterpret_cast<uintptr_t>(Img.get());
+
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
             // If it has already been registered we update the information.
-            ExistingDeviceGlobal->second->initialize(TypeSize,
+            ExistingDeviceGlobal->second->initialize(ImgId, TypeSize,
                                                      DeviceImageScopeDecorated);
           } else {
             // If it has not already been registered we create a new entry.
             // Note: Pointer to the device global is not available here, so it
             //       cannot be set until registration happens.
             auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-                DeviceGlobal->Name, TypeSize, DeviceImageScopeDecorated);
+                DeviceGlobal->Name, ImgId, TypeSize, DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
           }
         }
@@ -1615,6 +1606,60 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
       BinImages.insert(It->second);
   }
   return BinImages;
+}
+
+DeviceGlobalMapEntry *
+ProgramManager::getDeviceGlobalEntry(const std::string &UniqueId) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  auto Entry = m_DeviceGlobals.find(UniqueId);
+  assert(Entry != m_DeviceGlobals.end() && "Device global entry not found");
+  return Entry->second.get();
+}
+
+DeviceGlobalMapEntry *
+ProgramManager::getDeviceGlobalEntry(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  auto Entry = m_Ptr2DeviceGlobal.find(DeviceGlobalPtr);
+  assert(Entry != m_Ptr2DeviceGlobal.end() && "Device global entry not found");
+  return Entry->second;
+}
+
+std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
+    const std::vector<std::string> &UniqueIds,
+    bool ExcludeDeviceImageScopeDecorated) {
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  FoundEntries.reserve(UniqueIds.size());
+
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  for (const std::string &UniqueId : UniqueIds) {
+    auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
+    assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
+           "Device global not found in map.");
+    if (ExcludeDeviceImageScopeDecorated &&
+        !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
+      FoundEntries.push_back(DeviceGlobalEntry->second.get());
+  }
+  return FoundEntries;
+}
+
+device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
+    RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
+  const bundle_state ImgState = getBinImageState(BinImage);
+
+  assert(compatibleWithDevice(BinImage, Dev));
+
+  std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
+  // Collect kernel names for the image
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    KernelIDs = m_BinImg2KernelIDs[BinImage];
+  }
+
+  DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+      BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
+      /*PIProgram=*/nullptr);
+
+  return createSyclObjFromImpl<device_image_plain>(Impl);
 }
 
 std::vector<device_image_plain>
@@ -1944,16 +1989,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
   using PiProgramT = KernelProgramCache::PiProgramT;
-  using ProgramCacheT = KernelProgramCache::ProgramCacheT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireCachedPrograms();
-  };
-  auto GetF = [](const Locked<ProgramCacheT> &LockedCache) -> ProgramCacheT & {
-    return LockedCache.get();
-  };
 
   std::string CompileOpts;
   std::string LinkOpts;
@@ -2030,6 +2067,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       NativePrograms[BuiltProgram.get()] = &Img;
     }
 
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);
+
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
@@ -2043,9 +2082,16 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts));
+
+  // CacheKey is captured by reference so when we overwrite it later we can
+  // reuse this function.
+  auto GetCachedBuildF = [&Cache, &CacheKey]() {
+    return Cache.getOrInsertProgram(CacheKey);
+  };
+
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache, CacheKey, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2068,8 +2114,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Change device in the cache key to reduce copying of spec const data.
     CacheKey.second.first = PiDeviceAdd;
-    getOrBuild<PiProgramT, compile_program_error>(Cache, CacheKey, AcquireF,
-                                                  GetF, CacheOtherDevices);
+    getOrBuild<PiProgramT, compile_program_error>(
+        Cache, GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
@@ -2097,18 +2143,9 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
-  using KernelCacheT = KernelProgramCache::KernelCacheT;
-  using KernelByNameT = KernelProgramCache::KernelByNameT;
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 
-  auto AcquireF = [](KernelProgramCache &Cache) {
-    return Cache.acquireKernelsPerProgramCache();
-  };
-  auto GetF =
-      [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
-    return LockedCache.get()[Program];
-  };
   auto BuildF = [&Program, &KernelName, &Ctx] {
     PiKernelT *Result = nullptr;
 
@@ -2122,8 +2159,12 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
     return Result;
   };
 
+  auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
+    return Cache.getOrInsertKernel(Program, KernelName);
+  };
+
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
-      Cache, KernelName, AcquireF, GetF, BuildF);
+      Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
   return std::make_pair(BuildResult->Ptr.load(),
