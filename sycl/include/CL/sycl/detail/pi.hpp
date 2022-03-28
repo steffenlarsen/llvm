@@ -276,6 +276,7 @@ public:
     };
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
+    size_t size() const { return std::distance(begin(), end()); }
     friend class DeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 

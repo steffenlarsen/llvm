@@ -4943,6 +4943,47 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+pi_result cuda_piextEnqueueDeviceVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)name;
+  (void)blocking_write;
+  (void)count;
+  (void)offset;
+  (void)src;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  cl::sycl::detail::pi::die(
+      "cuda_piextEnqueueDeviceVariableWrite not implemented");
+  return {};
+}
+
+pi_result cuda_piextEnqueueDeviceVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)name;
+  (void)blocking_read;
+  (void)count;
+  (void)offset;
+  (void)dst;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  cl::sycl::detail::pi::die(
+      "cuda_piextEnqueueDeviceVariableRead not implemented");
+  return {};
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -5084,6 +5125,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, cuda_piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, cuda_piextUSMEnqueueMemAdvise)
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
+  // Device variable
+  _PI_CL(piextEnqueueDeviceVariableWrite, cuda_piextEnqueueDeviceVariableWrite)
+  _PI_CL(piextEnqueueDeviceVariableRead, cuda_piextEnqueueDeviceVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)

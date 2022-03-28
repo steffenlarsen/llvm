@@ -436,7 +436,9 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMCPY = CL_COMMAND_SVM_MEMCPY,
   PI_COMMAND_TYPE_SVM_MEMFILL = CL_COMMAND_SVM_MEMFILL,
   PI_COMMAND_TYPE_SVM_MAP = CL_COMMAND_SVM_MAP,
-  PI_COMMAND_TYPE_SVM_UNMAP = CL_COMMAND_SVM_UNMAP
+  PI_COMMAND_TYPE_SVM_UNMAP = CL_COMMAND_SVM_UNMAP,
+  PI_COMMAND_TYPE_DEVICE_VARIABLE_READ = CL_COMMAND_READ_BUFFER,
+  PI_COMMAND_TYPE_DEVICE_VARIABLE_WRITE = CL_COMMAND_WRITE_BUFFER,
 } _pi_command_type;
 
 typedef enum {
@@ -1768,6 +1770,51 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
+///
+/// Device variable
+///
+
+/// API for writing data from host to a device variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device variable
+/// \param blocking_write is true if the write should block
+/// \param name is the unique identifier for the device variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device variable to start copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceVariableWrite(pi_queue queue, pi_program program,
+                                          const char *name,
+                                          pi_bool blocking_write, size_t count,
+                                          size_t offset, const void *src,
+                                          pi_uint32 num_events_in_wait_list,
+                                          const pi_event *event_wait_list,
+                                          pi_event *event);
+
+/// API reading data from a device variable to host.
+///
+/// \param device is the device
+/// \param program is the program containing the device variable
+/// \param blocking_read is true if the read should block
+/// \param name is the unique identifier for the device variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device variable to start copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+///
+/// Plugin
+///
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it

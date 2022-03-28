@@ -1305,6 +1305,114 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+/// API for writing data from host to a device variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device variable
+/// \param name is the unique identifier for the device variable
+/// \param blocking_write is true if the write should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device variable to start copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceVariableWrite(pi_queue queue, pi_program program,
+                                          const char *name,
+                                          pi_bool blocking_write, size_t count,
+                                          size_t offset, const void *src,
+                                          pi_uint32 num_events_in_wait_list,
+                                          const pi_event *event_wait_list,
+                                          pi_event *event) {
+  (void)program;
+  (void)name;
+  (void)blocking_write;
+  (void)count;
+  (void)offset;
+  (void)src;
+  return cast<pi_result>(clEnqueueMarkerWithWaitList(
+      cast<cl_command_queue>(queue), num_events_in_wait_list,
+      cast<const cl_event *>(event_wait_list), cast<cl_event *>(event)));
+
+  /*
+  // Use this once impls support it.
+  // Have to look up the context from the kernel
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS)
+    return cast<pi_result>(CLErr);
+
+  clEnqueueWriteGlobalVariableINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal =
+      getExtFuncFromContext<"clEnqueueWriteGlobalVariableINTEL",
+                            clEnqueueWriteGlobalVariableINTEL_fn>(
+          cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+        blocking_write, count, offset, src, num_events_in_wait_list,
+        cast<const cl_event *>(event_wait_list), cast<cl_event>(event)));
+  }
+
+  return RetVal;
+  */
+}
+
+/// API reading data from a device variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device variable
+/// \param name is the unique identifier for the device variable
+/// \param blocking_read is true if the read should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device variable to start copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  (void)program;
+  (void)name;
+  (void)blocking_read;
+  (void)count;
+  (void)offset;
+  (void)dst;
+  return cast<pi_result>(clEnqueueMarkerWithWaitList(
+      cast<cl_command_queue>(queue), num_events_in_wait_list,
+      cast<const cl_event *>(event_wait_list), cast<cl_event *>(event)));
+
+  /*
+  // Use this once impls support it.
+  // Have to look up the context from the kernel
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS)
+    return cast<pi_result>(CLErr);
+
+  clEnqueueReadGlobalVariableINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<"clEnqueueReadGlobalVariableINTEL",
+                                           clEnqueueReadGlobalVariableINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+        blocking_read, count, offset, dst, num_events_in_wait_list,
+        cast<const cl_event *>(event_wait_list), cast<cl_event>(event)));
+  }
+
+  return RetVal;
+  */
+}
+
 /// API to set attributes controlling kernel execution
 ///
 /// \param kernel is the pi kernel to execute
@@ -1537,6 +1645,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  // Device variable
+  _PI_CL(piextEnqueueDeviceVariableWrite, piextEnqueueDeviceVariableWrite)
+  _PI_CL(piextEnqueueDeviceVariableRead, piextEnqueueDeviceVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
