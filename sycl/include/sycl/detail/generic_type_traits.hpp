@@ -231,6 +231,9 @@ using is_genptr = bool_constant<
 
 template <typename T> using is_nan_type = is_contained<T, gtl::nan_list>;
 
+
+template <typename T> using is_genfloat_convertible = is_convertible<T, gtl::floating_list>;
+
 // nan_types
 template <typename T, typename Enable = void> struct nan_types;
 

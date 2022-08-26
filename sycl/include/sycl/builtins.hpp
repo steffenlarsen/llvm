@@ -35,8 +35,12 @@ namespace __sycl_std = __host_std;
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> acos(T x) __NOEXC {
-  return __sycl_std::__invoke_acos<T>(x);
+detail::enable_if_t<detail::is_genfloat_convertible<T>::value,
+                    typename detail::is_genfloat_convertible<T>::to_type>
+acos(T x) __NOEXC {
+  return __sycl_std::__invoke_acos<
+      typename detail::is_genfloat_convertible<T>::to_type,
+      typename detail::is_genfloat_convertible<T>::to_type>(x);
 }
 
 // genfloat acosh (genfloat x)

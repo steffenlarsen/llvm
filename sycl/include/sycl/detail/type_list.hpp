@@ -138,6 +138,91 @@ template <typename TypeList, typename T>
 using find_twice_as_large_type_t =
     find_type_t<TypeList, is_type_size_double_of, T>;
 
+// Find most suitable convertible type
+template <typename T, typename CandT1, typename CandT2>
+struct select_most_suitable_conversion {
+  static constexpr bool CandT1_is_same = std::is_same<T, CandT1>::value;
+  static constexpr bool CandT2_is_same = std::is_same<T, CandT2>::value;
+  static constexpr bool CandT1_has_closest_size =
+      (sizeof(T) > sizeof(CandT1) ? sizeof(T) - sizeof(CandT1)
+                                  : sizeof(CandT1) - sizeof(T)) <=
+      (sizeof(T) > sizeof(CandT2) ? sizeof(T) - sizeof(CandT2)
+                                  : sizeof(CandT2) - sizeof(T));
+  using type = std::conditional_t<
+      CandT1_is_same, CandT1,
+      std::conditional_t<
+          CandT2_is_same, CandT2,
+          std::conditional_t<CandT1_has_closest_size, CandT1, CandT2>>>;
+};
+template <typename T, typename CandT>
+struct select_most_suitable_conversion<T, CandT, void> {
+  using type = CandT;
+};
+template <typename T, typename CandT>
+struct select_most_suitable_conversion<T, void, CandT> {
+  using type = CandT;
+};
+template <typename T>
+struct select_most_suitable_conversion<T, void, void> {
+  using type = void;
+};
+
+template <typename T, typename InheritFromT, typename = void>
+struct inherit_quals {
+  using type = T;
+};
+template <typename T, typename InheritFromT>
+struct inherit_quals<T, InheritFromT,
+                     std::enable_if_t<std::is_const<InheritFromT>::value &&
+                                      !std::is_volatile<InheritFromT>::value>> {
+  using type = typename std::add_const<T>::type;
+};
+template <typename T, typename InheritFromT>
+struct inherit_quals<T, InheritFromT,
+                     std::enable_if_t<!std::is_const<InheritFromT>::value &&
+                                      std::is_volatile<InheritFromT>::value>> {
+  using type = typename std::add_volatile<T>::type;
+};
+template <typename T, typename InheritFromT>
+struct inherit_quals<T, InheritFromT,
+                     std::enable_if_t<std::is_const<InheritFromT>::value &&
+                                      std::is_volatile<InheritFromT>::value>> {
+  using type = typename std::add_cv<T>::type;
+};
+
+template <typename T, typename TypeList, typename = void>
+struct is_convertible : public is_convertible<T, tail_t<TypeList>> {
+};
+
+template <typename T, typename TypeList>
+struct is_convertible<
+    T, TypeList,
+    std::enable_if_t<std::is_same<remove_cv_t<T>, head_t<TypeList>>::value>> {
+  using to_type = T;
+  static constexpr bool value = true;
+};
+
+template <typename T, typename TypeList>
+struct is_convertible<
+    T, TypeList,
+    std::enable_if_t<
+        std::is_convertible<remove_cv_t<T>, head_t<TypeList>>::value &&
+        !std::is_same<remove_cv_t<T>, head_t<TypeList>>::value>> {
+  using tail_is_convertible = is_convertible<T, tail_t<TypeList>>;
+  using new_type = typename inherit_quals<head_t<TypeList>, T>::type;
+  using to_type = std::conditional_t<
+      !tail_is_convertible::value, new_type,
+      typename select_most_suitable_conversion<
+          T, new_type, typename tail_is_convertible::to_type>::type>;
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_convertible<T, empty_type_list> {
+  using to_type = void;
+  static constexpr bool value = false;
+};
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
