@@ -341,49 +341,17 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             RT::PiEvent &Event) {
 
   if (!EventImpls.empty()) {
-    if (Queue->is_host()) {
-      // Host queue can wait for events from different contexts, i.e. it may
-      // contain events with different contexts in its MPreparedDepsEvents.
-      // OpenCL 2.1 spec says that clWaitForEvents will return
-      // CL_INVALID_CONTEXT if events specified in the list do not belong to
-      // the same context. Thus we split all the events into per-context map.
-      // An example. We have two queues for the same CPU device: Q1, Q2. Thus
-      // we will have two different contexts for the same CPU device: C1, C2.
-      // Also we have default host queue. This queue is accessible via
-      // Scheduler. Now, let's assume we have three different events: E1(C1),
-      // E2(C1), E3(C2). Also, we have an EmptyCommand which is to be executed
-      // on host queue. The command's MPreparedDepsEvents will contain all three
-      // events (E1, E2, E3). Now, if piEventsWait is called for all three
-      // events we'll experience failure with CL_INVALID_CONTEXT 'cause these
-      // events refer to different contexts.
-      std::map<context_impl *, std::vector<EventImplPtr>>
-          RequiredEventsPerContext;
-
-      for (const EventImplPtr &Event : EventImpls) {
-        ContextImplPtr Context = Event->getContextImpl();
-        assert(Context.get() &&
-               "Only non-host events are expected to be waited for here");
-        RequiredEventsPerContext[Context.get()].push_back(Event);
-      }
-
-      for (auto &CtxWithEvents : RequiredEventsPerContext) {
-        std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
-      }
-    } else {
 #ifndef NDEBUG
-      for (const EventImplPtr &Event : EventImpls)
-        assert(Event->getContextImpl().get() &&
-               "Only non-host events are expected to be waited for here");
+    for (const EventImplPtr &Event : EventImpls)
+      assert(Event->getContextImpl().get() &&
+             "Only non-host events are expected to be waited for here");
 #endif
 
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
-      flushCrossQueueDeps(EventImpls, getWorkerQueue());
-      const detail::plugin &Plugin = Queue->getPlugin();
-      Plugin.call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
-    }
+    std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
+    flushCrossQueueDeps(EventImpls, getWorkerQueue());
+    const detail::plugin &Plugin = Queue->getPlugin();
+    Plugin.call<PiApiKind::piEnqueueEventsWait>(
+        Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
   }
 }
 
@@ -586,8 +554,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 3. Some types of commands do not produce PI events after they are enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized()) ||
-                         getType() == CommandType::HOST_TASK;
+  bool PiEventExpected =
+      DepEvent->isInitialized() || getType() == CommandType::HOST_TASK;
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -608,7 +576,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
+  if (DepEventContext != WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
@@ -756,8 +724,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
-    if (MShouldCompleteEventIfPossible &&
-        (MEvent->is_host() || MEvent->getHandleRef() == nullptr))
+    if (MShouldCompleteEventIfPossible && MEvent->getHandleRef() == nullptr)
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
@@ -904,17 +871,8 @@ pi_int32 AllocaCommand::enqueueImp() {
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
-  void *HostPtr = nullptr;
-  if (!MIsLeaderAlloca) {
-
-    if (MQueue->is_host()) {
-      // Do not need to make allocation if we have a linked device allocation
-      Command::waitForEvents(MQueue, EventImpls, Event);
-
-      return PI_SUCCESS;
-    }
-    HostPtr = MLinkedAllocaCmd->getMemAllocation();
-  }
+  void *HostPtr =
+      MIsLeaderAlloca ? nullptr : MLinkedAllocaCmd->getMemAllocation();
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
   MMemAllocation = MemoryManager::allocate(
@@ -985,11 +943,6 @@ void *AllocaSubBufCommand::getMemAllocation() const {
   // In some cases parent`s memory allocation might change (e.g., after
   // map/unmap operations). If parent`s memory allocation changes, sub-buffer
   // memory allocation should be changed as well.
-  if (MQueue->is_host()) {
-    return static_cast<void *>(
-        static_cast<char *>(MParentAlloca->getMemAllocation()) +
-        MRequirement.MOffsetInBytes);
-  }
   return MMemAllocation;
 }
 
@@ -1062,46 +1015,18 @@ pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
-  bool SkipRelease = false;
 
-  // On host side we only allocate memory for full buffers.
-  // Thus, deallocating sub buffers leads to double memory freeing.
-  SkipRelease |= MQueue->is_host() && MAllocaCmd->getType() == ALLOCA_SUB_BUF;
-
-  const bool CurAllocaIsHost = MAllocaCmd->getQueue()->is_host();
-  bool NeedUnmap = false;
-  if (MAllocaCmd->MLinkedAllocaCmd) {
-
-    // When releasing one of the "linked" allocations special rules take place:
-    // 1. Device allocation should always be released.
-    // 2. Host allocation should be released if host allocation is "leader".
-    // 3. Device alloca in the pair should be in active state in order to be
-    //    correctly released.
-
-    // There is no actual memory allocation if a host alloca command is created
-    // being linked to a device allocation.
-    SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MIsLeaderAlloca;
-
-    NeedUnmap |= CurAllocaIsHost == MAllocaCmd->MIsActive;
-  }
-
-  if (NeedUnmap) {
-    const QueueImplPtr &Queue = CurAllocaIsHost
-                                    ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
-                                    : MAllocaCmd->getQueue();
+  if (MAllocaCmd->MLinkedAllocaCmd && !MAllocaCmd->MIsActive) {
+    const QueueImplPtr &Queue = MAllocaCmd->getQueue();
 
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
     UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
     UnmapEventImpl->setStateIncomplete();
     RT::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
 
-    void *Src = CurAllocaIsHost
-                    ? MAllocaCmd->getMemAllocation()
-                    : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
+    void *Src = MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
 
-    void *Dst = !CurAllocaIsHost
-                    ? MAllocaCmd->getMemAllocation()
-                    : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
+    void *Dst = MAllocaCmd->getMemAllocation();
 
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
                          RawEvents, UnmapEvent);
@@ -1111,13 +1036,9 @@ pi_int32 ReleaseCommand::enqueueImp() {
     EventImpls.push_back(UnmapEventImpl);
   }
   RT::PiEvent &Event = MEvent->getHandleRef();
-  if (SkipRelease)
-    Command::waitForEvents(MQueue, EventImpls, Event);
-  else {
-    MemoryManager::release(
-        MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
-        MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
-  }
+  MemoryManager::release(
+      MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
+      MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
   return PI_SUCCESS;
 }
 
@@ -1295,9 +1216,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)),
       MDstAllocaCmd(DstAllocaCmd) {
-  if (!MSrcQueue->is_host()) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-  }
+  MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   emitInstrumentationDataProxy();
 }
 
@@ -1336,7 +1255,7 @@ const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
 }
 
 const QueueImplPtr &MemCpyCommand::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
+  return MQueue;
 }
 
 bool MemCpyCommand::producesPiEvent() const {
@@ -1355,8 +1274,7 @@ bool MemCpyCommand::producesPiEvent() const {
   // an event waitlist and Level Zero plugin attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue->is_host() ||
-         MQueue->getPlugin().getBackend() != backend::ext_oneapi_level_zero ||
+  return MQueue->getPlugin().getBackend() != backend::ext_oneapi_level_zero ||
          MEvent->getHandleRef() != nullptr;
 }
 
@@ -1384,10 +1302,8 @@ void MemCpyCommand::printDot(std::ostream &Stream) const {
 
   Stream << "ID = " << this << " ; ";
   Stream << "MEMCPY ON " << deviceToString(MQueue->get_device()) << "\\n";
-  Stream << "From: " << MSrcAllocaCmd << " is host: " << MSrcQueue->is_host()
-         << "\\n";
-  Stream << "To: " << MDstAllocaCmd << " is host: " << MQueue->is_host()
-         << "\\n";
+  Stream << "From: " << MSrcAllocaCmd << "\\n";
+  Stream << "To: " << MDstAllocaCmd << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1477,10 +1393,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
-  if (!MSrcQueue->is_host()) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-  }
-
+  MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   emitInstrumentationDataProxy();
 }
 
@@ -1519,7 +1432,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
 }
 
 const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
+  return MQueue;
 }
 
 pi_int32 MemCpyCommandHost::enqueueImp() {
@@ -2022,12 +1935,6 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
-      if (Queue->is_host()) {
-        throw sycl::feature_not_supported(
-            "SYCL2020 specialization constants are not yet supported on host "
-            "device",
-            PI_ERROR_INVALID_OPERATION);
-      }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
       // Avoid taking an address of nullptr
@@ -2104,7 +2011,7 @@ void DispatchNativeKernel(void *Blob) {
   delete NDRDesc;
 }
 
-pi_int32 enqueueImpKernel(
+pi_result enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -2302,27 +2209,6 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     void **NextArg = ArgsBlob.data() + 3;
 
-    if (MQueue->is_host()) {
-      for (ArgDesc &Arg : HostTask->MArgs) {
-        assert(Arg.MType == kernel_param_kind_t::kind_accessor);
-
-        Requirement *Req = (Requirement *)(Arg.MPtr);
-        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-
-        *NextArg = AllocaCmd->getMemAllocation();
-        NextArg++;
-      }
-
-      if (!RawEvents.empty()) {
-        // Assuming that the events are for devices to the same Plugin.
-        const detail::plugin &Plugin = EventImpls[0]->getPlugin();
-        Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
-      }
-      DispatchNativeKernel((void *)ArgsBlob.data());
-
-      return PI_SUCCESS;
-    }
-
     std::vector<pi_mem> Buffers;
     // piEnqueueNativeKernel requires additional array of pointers to args blob,
     // values that pointers point to are replaced with actual pointers to the
@@ -2364,8 +2250,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getPlugin().getBackend() ==
-                              backend::ext_intel_esimd_emulator)) {
+    if (MQueue->getPlugin().getBackend() == backend::ext_intel_esimd_emulator) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2378,19 +2263,11 @@ pi_int32 ExecCGCommand::enqueueImp() {
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      if (MQueue->is_host()) {
-        ExecKernel->MHostKernel->call(NDRDesc,
-                                      getEvent()->getHostProfilingInfo());
-      } else {
-        assert(MQueue->getPlugin().getBackend() ==
-               backend::ext_intel_esimd_emulator);
-
-        MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      }
+      MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
+          nullptr,
+          reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
+          NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+          &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
 
       return PI_SUCCESS;
     }
@@ -2533,10 +2410,6 @@ pi_int32 ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    if (MQueue->get_device().is_host()) {
-      // NOP for host device.
-      return PI_SUCCESS;
-    }
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
@@ -2547,8 +2420,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
-    if (MQueue->get_device().is_host() || PiEvents.empty()) {
-      // NOP for host device.
+    if (PiEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }

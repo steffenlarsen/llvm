@@ -148,9 +148,6 @@ public:
   /// \return a valid OpenCL cl_program instance.
   cl_program get() const;
 
-  /// \return true if this SYCL program is a host program.
-  bool is_host() const;
-
   /// Compiles the SYCL kernel function into the encapsulated raw program.
   ///
   /// The kernel function is defined by the type KernelT. This member function

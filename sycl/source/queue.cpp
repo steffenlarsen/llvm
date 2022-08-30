@@ -74,8 +74,6 @@ context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
 
-bool queue::is_host() const { return impl->is_host(); }
-
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
 event queue::memset(void *Ptr, int Value, size_t Count) {

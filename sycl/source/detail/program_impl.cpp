@@ -72,9 +72,7 @@ program_impl::program_impl(
   }
   MDevices = ProgramList[0]->MDevices;
   std::vector<device> DevicesSorted;
-  if (!is_host()) {
-    DevicesSorted = sort_devices_by_cl_device_id(MDevices);
-  }
+  DevicesSorted = sort_devices_by_cl_device_id(MDevices);
   check_device_feature_support<info::device::is_linker_available>(MDevices);
   std::list<std::lock_guard<std::mutex>> Locks;
   for (const auto &Prg : ProgramList) {
@@ -85,34 +83,30 @@ program_impl::program_impl(
           "Not all programs are associated with the same context",
           PI_ERROR_INVALID_PROGRAM);
     }
-    if (!is_host()) {
-      std::vector<device> PrgDevicesSorted =
-          sort_devices_by_cl_device_id(Prg->MDevices);
-      if (PrgDevicesSorted != DevicesSorted) {
-        throw invalid_object_error(
-            "Not all programs are associated with the same devices",
-            PI_ERROR_INVALID_PROGRAM);
-      }
+    std::vector<device> PrgDevicesSorted =
+        sort_devices_by_cl_device_id(Prg->MDevices);
+    if (PrgDevicesSorted != DevicesSorted) {
+      throw invalid_object_error(
+          "Not all programs are associated with the same devices",
+          PI_ERROR_INVALID_PROGRAM);
     }
   }
 
-  if (!is_host()) {
-    std::vector<RT::PiDevice> Devices(get_pi_devices());
-    std::vector<RT::PiProgram> Programs;
-    bool NonInterOpToLink = false;
-    for (const auto &Prg : ProgramList) {
-      if (!Prg->MLinkable && NonInterOpToLink)
-        continue;
-      NonInterOpToLink |= !Prg->MLinkable;
-      Programs.push_back(Prg->MProgram);
-    }
-    const detail::plugin &Plugin = getPlugin();
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(),
-        LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
-        &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  std::vector<RT::PiProgram> Programs;
+  bool NonInterOpToLink = false;
+  for (const auto &Prg : ProgramList) {
+    if (!Prg->MLinkable && NonInterOpToLink)
+      continue;
+    NonInterOpToLink |= !Prg->MLinkable;
+    Programs.push_back(Prg->MProgram);
   }
+  const detail::plugin &Plugin = getPlugin();
+  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      MContext->getHandleRef(), Devices.size(), Devices.data(),
+      LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
+      &MProgram);
+  Plugin.checkPiResult<compile_program_error>(Err);
 }
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -206,7 +200,7 @@ program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
 
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host() && MProgram != nullptr) {
+  if (MProgram != nullptr) {
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piProgramRelease>(MProgram);
   }
@@ -214,11 +208,6 @@ program_impl::~program_impl() {
 
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    throw invalid_object_error(
-        "This instance of program doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_PROGRAM);
-  }
   getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
@@ -229,12 +218,10 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = M;
-  if (!is_host()) {
-    create_pi_program_with_kernel_name(
-        M, KernelName,
-        /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
-    compile(CompileOptions);
-  }
+  create_pi_program_with_kernel_name(
+      M, KernelName,
+      /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
+  compile(CompileOptions);
   MState = program_state::compiled;
 }
 
@@ -243,10 +230,8 @@ void program_impl::compile_with_source(std::string KernelSource,
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    compile(CompileOptions);
-  }
+  create_cl_program_with_source(KernelSource);
+  compile(CompileOptions);
   MState = program_state::compiled;
   MIsInterop = true;
 }
@@ -257,16 +242,14 @@ void program_impl::build_with_kernel_name(std::string KernelName,
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
-  if (!is_host()) {
-    MProgramAndKernelCachingAllowed = true;
-    MBuildOptions = BuildOptions;
-    MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        Module, detail::getSyclObjImpl(get_context()),
-        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
-        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    const detail::plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
-  }
+  MProgramAndKernelCachingAllowed = true;
+  MBuildOptions = BuildOptions;
+  MProgram = ProgramManager::getInstance().getBuiltPIProgram(
+      Module, detail::getSyclObjImpl(get_context()),
+      detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
+      /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   MState = program_state::linked;
 }
 
@@ -275,10 +258,8 @@ void program_impl::build_with_source(std::string KernelSource,
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    build(BuildOptions);
-  }
+  create_cl_program_with_source(KernelSource);
+  build(BuildOptions);
   MState = program_state::linked;
   MIsInterop = true;
 }
@@ -286,30 +267,25 @@ void program_impl::build_with_source(std::string KernelSource,
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
-  if (!is_host()) {
-    check_device_feature_support<info::device::is_linker_available>(MDevices);
-    std::vector<RT::PiDevice> Devices(get_pi_devices());
-    const detail::plugin &Plugin = getPlugin();
-    const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
-    if (!LinkOpts) {
-      LinkOpts = LinkOptions.c_str();
-    }
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
-        /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
-    MLinkOptions = LinkOptions;
-    MBuildOptions = LinkOptions;
+  check_device_feature_support<info::device::is_linker_available>(MDevices);
+  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  const detail::plugin &Plugin = getPlugin();
+  const char *LinkOpts = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  if (!LinkOpts) {
+    LinkOpts = LinkOptions.c_str();
   }
+  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+      /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
+  Plugin.checkPiResult<compile_program_error>(Err);
+  MLinkOptions = LinkOptions;
+  MBuildOptions = LinkOptions;
   MState = program_state::linked;
 }
 
 bool program_impl::has_kernel(std::string KernelName,
                               bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    return !IsCreatedFromSource;
-  }
 
   std::vector<RT::PiDevice> Devices(get_pi_devices());
   pi_uint64 function_ptr;
@@ -336,14 +312,6 @@ kernel program_impl::get_kernel(std::string KernelName,
                                 std::shared_ptr<program_impl> PtrToSelf,
                                 bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
-  if (is_host()) {
-    if (IsCreatedFromSource)
-      throw invalid_object_error("This instance of program is a host instance",
-                                 PI_ERROR_INVALID_PROGRAM);
-
-    return createSyclObjFromImpl<kernel>(
-        std::make_shared<kernel_impl>(MContext, PtrToSelf));
-  }
   return createSyclObjFromImpl<kernel>(
       std::make_shared<kernel_impl>(get_pi_kernel(KernelName), MContext,
                                     PtrToSelf, IsCreatedFromSource, nullptr));
@@ -351,9 +319,6 @@ kernel program_impl::get_kernel(std::string KernelName,
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {
   throw_if_state_is(program_state::none);
-  if (is_host())
-    return {};
-
   std::vector<std::vector<char>> Result;
   const detail::plugin &Plugin = getPlugin();
   std::vector<size_t> BinarySizes(MDevices.size());
@@ -506,10 +471,6 @@ void program_impl::create_pi_program_with_kernel_name(
 
 template <>
 uint32_t program_impl::get_info<info::program::reference_count>() const {
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_ERROR_INVALID_PROGRAM);
-  }
   pi_uint32 Result;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piProgramGetInfo>(MProgram,

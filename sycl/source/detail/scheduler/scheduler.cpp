@@ -80,17 +80,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
 
-  if (Type == CG::Kernel) {
+  if (Type == CG::Kernel)
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
-    // Stream's flush buffer memory is mainly initialized in stream's __init
-    // method. However, this method is not available on host device.
-    // Initializing stream's flush buffer on the host side in a separate task.
-    if (Queue->is_host()) {
-      for (const StreamImplPtr &Stream : Streams) {
-        initStream(Stream, Queue);
-      }
-    }
-  }
 
   {
     WriteLockT Lock(MGraphLock, std::defer_lock);

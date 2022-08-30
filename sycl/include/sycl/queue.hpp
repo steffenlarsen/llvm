@@ -269,9 +269,6 @@ public:
   /// \return SYCL device this queue was constructed with.
   device get_device() const;
 
-  /// \return true if this queue is a SYCL host queue.
-  bool is_host() const;
-
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -294,7 +291,6 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
@@ -310,12 +306,10 @@ public:
 
       auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
       return discard_or_return(Event);
-    } else
-#endif // __SYCL_USE_FALLBACK_ASSERT
-    {
+#else
       auto Event = submit_impl(CGF, CodeLoc);
       return discard_or_return(Event);
-    }
+#endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -334,7 +328,6 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
       auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                              bool IsKernel, bool KernelUsesAssert, event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
@@ -343,8 +336,7 @@ public:
           // capture.
           // TODO: Handle case where primary queue is host but the secondary
           // queue is not.
-          queue *DeviceSecondaryQueue =
-              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
+          queue *DeviceSecondaryQueue = &SecondaryQueue;
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
@@ -356,12 +348,10 @@ public:
       auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
                                                PostProcess);
       return discard_or_return(Event);
-    } else
-#endif // __SYCL_USE_FALLBACK_ASSERT
-    {
+#else
       auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
       return discard_or_return(Event);
-    }
+#endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
   /// Prevents any commands submitted afterward to this queue from executing

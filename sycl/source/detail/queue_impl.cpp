@@ -28,10 +28,9 @@ namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
-  if (!is_host())
-    getPlugin().call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+  getPlugin().call<PiApiKind::piQueueGetInfo>(
+      MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+      nullptr);
   return result;
 }
 
@@ -71,9 +70,6 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   MemoryManager::fill_usm(Ptr, Self, Count, Value,
                           getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
-
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
@@ -92,9 +88,6 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   RT::PiEvent NativeEvent{};
   MemoryManager::copy_usm(Src, Self, Count, Dest,
                           getOrWaitEvents(DepEvents, MContext), &NativeEvent);
-
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
@@ -116,9 +109,6 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
-
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
@@ -134,7 +124,7 @@ void queue_impl::addEvent(const event &Event) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
     // unable to call piQueueFinish during wait.
-    if (is_host() || !MSupportOOO)
+    if (!MSupportOOO)
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
@@ -143,7 +133,7 @@ void queue_impl::addEvent(const event &Event) {
   // 2. Kernels with streams, since they are not supported by post enqueue
   // cleanup.
   // 3. Host tasks, for both reasons.
-  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
+  else if (!MSupportOOO || EImpl->getHandleRef() == nullptr ||
            EImpl->needsCleanupAfterWait()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
@@ -155,7 +145,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || !MSupportOOO);
+  assert(!MSupportOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -290,19 +280,18 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  const bool SupportsPiFinish = !is_host() && MSupportOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock()) {
       // A nullptr PI event indicates that piQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
+      if (!MSupportOOO || nullptr == EventImplSharedPtr->getHandleRef()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }
   }
-  if (SupportsPiFinish) {
+  if (MSupportOOO) {
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
     for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)

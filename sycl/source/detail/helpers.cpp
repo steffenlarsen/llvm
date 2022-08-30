@@ -26,12 +26,10 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    if (SyclEventImplPtr->MIsContextInitialized == false &&
-        !SyclEventImplPtr->is_host()) {
+    if (!SyclEventImplPtr->MIsContextInitialized)
       continue;
-    }
-    if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context) {
+
+    if (SyclEventImplPtr->getContextImpl() != Context) {
       SyclEventImplPtr->waitInternal();
     } else {
       Events.push_back(SyclEventImplPtr->getHandleRef());

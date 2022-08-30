@@ -57,8 +57,6 @@ program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }
 
-bool program::is_host() const { return impl->is_host(); }
-
 void program::compile_with_source(std::string kernelSource,
                                   std::string compileOptions) {
   impl->compile_with_source(kernelSource, compileOptions);

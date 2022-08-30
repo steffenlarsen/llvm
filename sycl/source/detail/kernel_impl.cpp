@@ -63,9 +63,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
       MKernelBundleImpl(std::move(KernelBundleImpl)) {
 
   // kernel_impl shared ownership of kernel handle
-  if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
-  }
+  getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
 
   MIsInterop = MKernelBundleImpl->isInterop();
 }
@@ -75,9 +73,7 @@ kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
-  }
+  getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
 }
 
 bool kernel_impl::isCreatedFromSource() const {

@@ -37,8 +37,6 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-bool event::is_host() const { return impl->is_host(); }
-
 void event::wait() { impl->wait(impl); }
 
 void event::wait(const std::vector<event> &EventList) {

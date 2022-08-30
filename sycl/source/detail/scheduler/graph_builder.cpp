@@ -42,12 +42,6 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
           LHS->MOffsetInBytes);
 }
 
-static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
-  // Consider two different host contexts to be the same to avoid additional
-  // allocation on the host
-  return LHS == RHS || (LHS->is_host() && RHS->is_host());
-}
-
 /// Checks if current requirement is requirement for sub buffer.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
@@ -301,16 +295,6 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   assert(AllocaCmdSrc->MIsActive &&
          "Expected source alloca command to be active");
 
-  if (AllocaCmdSrc->getQueue()->is_host()) {
-    UnMapMemObject *UnMapCmd = new UnMapMemObject(
-        AllocaCmdDst, *AllocaCmdDst->getRequirement(),
-        &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
-
-    std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
-
-    return UnMapCmd;
-  }
-
   MapMemObject *MapCmd = new MapMemObject(
       AllocaCmdSrc, *AllocaCmdSrc->getRequirement(),
       &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getQueue(), MapMode);
@@ -346,10 +330,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
-                         Record->MCurContext) &&
-                 // Looking for a parent buffer alloca command
-                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
+      bool Res =
+          AllocaCmd->getQueue()->getContextImplPtr() == Record->MCurContext &&
+          // Looking for a parent buffer alloca command
+          AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
     };
     const auto It =
@@ -411,8 +395,6 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
-  assert(HostAllocaCmd->getQueue()->is_host() &&
-         "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
 
   AllocaCommandBase *LinkedAllocaCmd = HostAllocaCmd->MLinkedAllocaCmd;
@@ -515,8 +497,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   AllocaCommandBase *HostAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, HostQueue, ToEnqueue);
 
-  if (sameCtx(HostAllocaCmd->getQueue()->getContextImplPtr(),
-              Record->MCurContext)) {
+  if (HostAllocaCmd->getQueue()->getContextImplPtr() == Record->MCurContext) {
     if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
       remapMemoryObject(Record, Req, HostAllocaCmd, ToEnqueue);
   } else
@@ -594,7 +575,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
       // Going through copying memory between contexts is not supported.
       if (Dep.MDepCommand)
         CanBypassDep &=
-            sameCtx(Context, Dep.MDepCommand->getQueue()->getContextImplPtr());
+            Context == Dep.MDepCommand->getQueue()->getContextImplPtr();
 
       if (!CanBypassDep) {
         RetDeps.insert(DepCmd);
@@ -633,7 +614,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     bool AllowConst) {
   auto IsSuitableAlloca = [&Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
-    bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
+    bool Res = AllocaCmd->getQueue()->getContextImplPtr() == Context;
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
@@ -652,7 +633,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
-      return Ctx->is_host();
+      return false;
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }
@@ -733,41 +714,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             Record->MCurContext = DefaultHostQueue->getContextImplPtr();
           }
         }
-      } else {
-        // If it is not the first allocation, try to setup a link
-        // FIXME: Temporary limitation, linked alloca commands for an image is
-        // not supported because map operation is not implemented for an image.
-        if (Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer)
-          // Current limitation is to setup link between current allocation and
-          // new one. There could be situations when we could setup link with
-          // "not" current allocation, but it will require memory copy.
-          // Can setup link between cl and host allocations only
-          if (Queue->is_host() != Record->MCurContext->is_host()) {
-            // Linked commands assume that the host allocation is reused by the
-            // plugin runtime and that can lead to unnecessary copy overhead on
-            // devices that do not support host unified memory. Do not link the
-            // allocations in this case.
-            // However, if the user explicitly requests use of pinned host
-            // memory, map/unmap operations are expected to work faster than
-            // read/write from/to an artbitrary host pointer. Link such commands
-            // regardless of host unified memory support.
-            bool PinnedHostMemory = MemObj->has_property<
-                sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
-
-            bool HostUnifiedMemoryOnNonHostDevice =
-                Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
-                                 : HostUnifiedMemory;
-            if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
-              AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
-                  Record, Req, Record->MCurContext, /*AllowConst=*/false);
-
-              // Cannot setup link if candidate is linked already
-              if (LinkedAllocaCmdCand &&
-                  !LinkedAllocaCmdCand->MLinkedAllocaCmd) {
-                LinkedAllocaCmd = LinkedAllocaCmdCand;
-              }
-            }
-          }
       }
 
       AllocaCmd =
@@ -795,23 +741,19 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // construction, host allocation doesn't. So, device allocation should
         // always be active here. Also if the "follower" command is a device one
         // we have to change current context to the device one.
-        if (Queue->is_host()) {
-          AllocaCmd->MIsActive = false;
-        } else {
-          LinkedAllocaCmd->MIsActive = false;
-          Record->MCurContext = Queue->getContextImplPtr();
+        LinkedAllocaCmd->MIsActive = false;
+        Record->MCurContext = Queue->getContextImplPtr();
 
-          std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Queue->getContextImplPtr());
-          for (Command *Dep : Deps) {
-            Command *ConnCmd = AllocaCmd->addDep(
-                DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
-            if (ConnCmd)
-              ToEnqueue.push_back(ConnCmd);
-          }
-          updateLeaves(Deps, Record, Req->MAccessMode, ToCleanUp);
-          addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode, ToEnqueue);
+        std::set<Command *> Deps =
+            findDepsForReq(Record, Req, Queue->getContextImplPtr());
+        for (Command *Dep : Deps) {
+          Command *ConnCmd = AllocaCmd->addDep(
+              DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
+          if (ConnCmd)
+            ToEnqueue.push_back(ConnCmd);
         }
+        updateLeaves(Deps, Record, Req->MAccessMode, ToCleanUp);
+        addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode, ToEnqueue);
       }
     }
 
@@ -955,19 +897,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       AllocaCmd =
           getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
 
-      isSameCtx =
-          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext);
+      isSameCtx = QueueForAlloca->getContextImplPtr() == Record->MCurContext;
     }
 
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (isSameCtx) {
-      // If the memory is already in the required host context, check if the
-      // required access mode is valid, remap if not.
-      if (Record->MCurContext->is_host() &&
-          !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
-        remapMemoryObject(Record, Req, AllocaCmd, ToEnqueue);
-    } else {
+    if (!isSameCtx) {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
       bool NeedMemMoveToHost = false;
@@ -981,8 +916,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
-      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+      } else {
         NeedMemMoveToHost = true;
+      }
 
       if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,

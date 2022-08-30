@@ -47,7 +47,7 @@ public:
   /// Normally constructs a host event, use std::nullopt to instead instantiate
   /// a device event.
   event_impl(std::optional<HostEventState> State = HES_Complete)
-      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+      : MIsInitialized(false), MIsFlushed(true),
         MState(State.value_or(HES_Complete)) {}
 
   /// Constructs an event instance from a plug-in event handle.
@@ -59,14 +59,6 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   event_impl(RT::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
-
-  /// Checks if this event is a SYCL host event.
-  ///
-  /// All devices that do not support OpenCL interoperability are treated as
-  /// host device to avoid attempts to call method get on such events.
-  //
-  /// \return true if this event is a SYCL host event.
-  bool is_host();
 
   /// Waits for the event.
   ///
@@ -162,11 +154,6 @@ public:
   /// @param Command is a generic pointer to Command object instance.
   void setCommand(void *Command) { MCommand = Command; }
 
-  /// Returns host profiling information.
-  ///
-  /// @return a pointer to HostProfilingInfo instance.
-  HostProfilingInfo *getHostProfilingInfo() { return MHostProfilingInfo.get(); }
-
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
@@ -237,8 +224,6 @@ private:
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MHostEvent = true;
-  std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;

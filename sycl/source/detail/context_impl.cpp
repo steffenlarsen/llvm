@@ -28,7 +28,7 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
+      MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
@@ -37,7 +37,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(false),
+      MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<RT::PiDevice> DeviceIds;
@@ -68,7 +68,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+      MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -104,27 +104,18 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
 }
 
 cl_context context_impl::get() const {
-  if (MHostContext) {
-    throw invalid_object_error(
-        "This instance of context doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_CONTEXT);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piContextRetain>(MContext);
   return pi::cast<cl_context>(MContext);
 }
-
-bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
     getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
   }
-  if (!MHostContext) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
-  }
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  getPlugin().call<PiApiKind::piContextRelease>(MContext);
 }
 
 const async_handler &context_impl::get_async_handler() const {
@@ -133,15 +124,10 @@ const async_handler &context_impl::get_async_handler() const {
 
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
-  if (is_host())
-    return 0;
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
                                                           this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
-  if (is_host())
-    return createSyclObjFromImpl<platform>(
-        platform_impl::getHostPlatformImpl());
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
@@ -153,11 +139,6 @@ template <>
 std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
-  if (is_host())
-    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
-            sycl::memory_order::release, sycl::memory_order::acq_rel,
-            sycl::memory_order::seq_cst};
-
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
@@ -169,11 +150,6 @@ template <>
 std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
-  if (is_host())
-    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
-            sycl::memory_scope::work_group, sycl::memory_scope::device,
-            sycl::memory_scope::system};
-
   pi_memory_scope_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,

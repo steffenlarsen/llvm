@@ -93,11 +93,6 @@ public:
   /// \return an instance of OpenCL cl_context.
   cl_context get() const;
 
-  /// Checks if this context is a host context.
-  ///
-  /// \return true if this context is a host context.
-  bool is_host() const;
-
   /// Gets asynchronous exception handler.
   ///
   /// \return an instance of SYCL async_handler.
@@ -183,7 +178,6 @@ private:
   RT::PiContext MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;
-  bool MHostContext;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;

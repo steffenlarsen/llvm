@@ -105,11 +105,6 @@ public:
   cl_kernel get() const;
 #endif
 
-  /// Check if the associated SYCL context is a SYCL host context.
-  ///
-  /// \return true if this SYCL kernel is a host kernel.
-  bool is_host() const;
-
   /// Get the context that this kernel is defined for.
   ///
   /// The value returned must be equal to that returned by

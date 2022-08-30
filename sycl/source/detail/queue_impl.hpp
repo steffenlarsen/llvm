@@ -90,14 +90,12 @@ public:
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList), MHostQueue(MDevice->is_host()),
-        MAssertHappenedBuffer(range<1>{1}),
+        MPropList(PropList), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+        MHasDiscardEventsSupport(MDiscardEvents && MIsInorder) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -105,8 +103,7 @@ public:
                             "discard_events and enable_profiling.");
     }
     if (!isValidDevice(Context, Device)) {
-      if (!Context->is_host() &&
-          Context->getPlugin().getBackend() == backend::opencl)
+      if (Context->getPlugin().getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
             "Queue cannot be constructed with the given context and device "
             "since the device is not a member of the context (descendants of "
@@ -118,13 +115,11 @@ public:
           "descendant of its member.",
           PI_ERROR_INVALID_DEVICE);
     }
-    if (!MHostQueue) {
-      const QueueOrder QOrder =
-          MPropList.has_property<property::queue::in_order>()
-              ? QueueOrder::Ordered
-              : QueueOrder::OOO;
-      MQueues.push_back(createQueue(QOrder));
-    }
+    const QueueOrder QOrder =
+        MPropList.has_property<property::queue::in_order>()
+            ? QueueOrder::Ordered
+            : QueueOrder::OOO;
+    MQueues.push_back(createQueue(QOrder));
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -136,13 +131,12 @@ public:
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
-        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+        MHasDiscardEventsSupport(MDiscardEvents && MIsInorder) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -166,18 +160,11 @@ public:
 
   ~queue_impl() {
     throw_asynchronous();
-    if (!MHostQueue) {
-      getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
-    }
+    getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
   }
 
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
-    if (MHostQueue) {
-      throw invalid_object_error(
-          "This instance of queue doesn't support OpenCL interoperability",
-          PI_ERROR_INVALID_QUEUE);
-    }
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
   }
@@ -195,9 +182,6 @@ public:
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
-
-  /// \return true if this queue is a SYCL host queue.
-  bool is_host() const { return MHostQueue; }
 
   /// \return true if this queue has discard_events support.
   bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
@@ -493,8 +477,7 @@ private:
     // OpenCL does not support creating a queue with a descendant of a device
     // from the given context yet.
     // TODO remove once this limitation is lifted
-    if (!Context->is_host() &&
-        Context->getPlugin().getBackend() == backend::opencl)
+    if (Context->getPlugin().getBackend() == backend::opencl)
       return Context->hasDevice(Device);
 
     while (!Context->hasDevice(Device)) {
@@ -522,7 +505,7 @@ private:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, false);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
@@ -596,7 +579,6 @@ private:
   /// Iterator through MQueues.
   size_t MNextQueueIdx = 0;
 
-  const bool MHostQueue = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
