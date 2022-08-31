@@ -57,31 +57,16 @@ context::context(const std::vector<device> &DeviceList,
     throw invalid_parameter_error("DeviceList is empty.",
                                   PI_ERROR_INVALID_VALUE);
   }
-  auto NonHostDeviceIter = std::find_if_not(
-      DeviceList.begin(), DeviceList.end(),
-      [&](const device &CurrentDevice) { return CurrentDevice.is_host(); });
-  if (NonHostDeviceIter == DeviceList.end())
-    impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
-                                                  PropList);
-  else {
-    const device &NonHostDevice = *NonHostDeviceIter;
-    const auto &NonHostPlatform =
-        detail::getSyclObjImpl(NonHostDevice.get_platform())->getHandleRef();
-    if (std::any_of(DeviceList.begin(), DeviceList.end(),
-                    [&](const device &CurrentDevice) {
-                      return (
-                          CurrentDevice.is_host() ||
-                          (detail::getSyclObjImpl(CurrentDevice.get_platform())
-                               ->getHandleRef() != NonHostPlatform));
-                    }))
+
+  for (size_t I = 0; I < DeviceList.size() - 1; ++I)
+    if (DeviceList[I].get_platform() != DeviceList[I + 1].get_platform())
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",
           PI_ERROR_INVALID_DEVICE);
-    else
-      impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
-                                                    PropList);
-  }
+  impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
+                                                PropList);
 }
+
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Plugin = RT::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(

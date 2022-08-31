@@ -381,16 +381,6 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
   StreamBuffersPool.erase(Impl);
 }
 
-Scheduler::Scheduler() {
-  sycl::device HostDevice =
-      createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
-  sycl::context HostContext{HostDevice};
-  DefaultHostQueue = QueueImplPtr(
-      new queue_impl(detail::getSyclObjImpl(HostDevice),
-                     detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{}));
-}
-
 Scheduler::~Scheduler() {
   // By specification there are several possible sync points: buffer
   // destruction, wait() method of a queue or event. Stream doesn't introduce

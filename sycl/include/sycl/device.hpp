@@ -94,11 +94,6 @@ public:
   cl_device_id get() const;
 #endif
 
-  /// Check if device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  bool is_host() const;
-
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device

@@ -75,9 +75,6 @@ static bool IsBannedPlatform(platform Platform) {
   // where CUDA is available, the OpenCL support is disabled.
   //
   auto IsNVIDIAOpenCL = [](platform Platform) {
-    if (Platform.is_host())
-      return false;
-
     const bool HasCUDA = Platform.get_info<info::platform::name>().find(
                              "NVIDIA CUDA") != std::string::npos;
     const auto Backend =
@@ -236,19 +233,9 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
-  if (is_host() && (DeviceType == info::device_type::host ||
-                    DeviceType == info::device_type::all)) {
-    // If SYCL_DEVICE_FILTER is set, check if filter contains host.
-    device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-    if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(
-          createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl()));
-    }
-  }
 
-  // If any DeviceType other than host was requested for host platform,
-  // an empty vector will be returned.
-  if (is_host() || DeviceType == info::device_type::host)
+  // If host was requested we return the empty vector.
+  if (DeviceType == info::device_type::host)
     return Res;
 
   pi_uint32 NumDevices = 0;
@@ -300,9 +287,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  if (is_host())
-    return false;
-
   std::string AllExtensionNames = get_platform_info_string_impl(
       MPlatform, getPlugin(),
       detail::PiInfoCode<info::platform::extensions>::value);
@@ -318,9 +302,6 @@ pi_native_handle platform_impl::getNative() const {
 
 template <typename Param>
 typename Param::return_type platform_impl::get_info() const {
-  if (is_host())
-    return get_platform_info_host<Param>();
-
   return get_platform_info<Param>(this->getHandleRef(), getPlugin());
 }
 

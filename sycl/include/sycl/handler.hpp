@@ -474,8 +474,6 @@ private:
 
   ~handler() = default;
 
-  bool is_host() { return MIsHost; }
-
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from AccessorBaseHost, so
   // can't detect by it. Since we don't expect it to be ever called in device

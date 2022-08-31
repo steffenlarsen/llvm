@@ -129,12 +129,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
 
     // handle host device specially
     if (Filter.HasBackend) {
-      backend BE;
-      if (Dev.is_host()) {
-        BE = backend::host;
-      } else {
-        BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
-      }
+      backend BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend == backend::all)
         BackendOK = true;

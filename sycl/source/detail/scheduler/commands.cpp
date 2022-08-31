@@ -73,8 +73,6 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
-  if (Device.is_host())
-    return "HOST";
   else if (Device.is_cpu())
     return "CPU";
   else if (Device.is_gpu())
@@ -122,10 +120,7 @@ static void applyFuncOnFilteredArgs(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
-  if (Device.is_host())
-    return 0;
-  else
-    return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
+  return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 #endif
 
@@ -2128,10 +2123,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     MemoryManager::copy(
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, Copy->getDst(),
-        Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
-        Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
+        Req->MAccessRange, /*DstOffset=*/{0, 0, 0}, Req->MElemSize,
+        std::move(RawEvents), MEvent->getHandleRef());
 
     return PI_SUCCESS;
   }
@@ -2140,11 +2134,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-    Scheduler::getInstance().getDefaultHostQueue();
-
     MemoryManager::copy(
-        AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
-        Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
+        AllocaCmd->getSYCLMemObj(), Copy->getSrc(), nullptr, Req->MDims,
         Req->MAccessRange, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,

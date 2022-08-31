@@ -71,16 +71,8 @@ public:
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
 
-  /// \return true if this SYCL platform is a host platform.
-  bool is_host() const { return MHostPlatform; };
-
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
-    if (is_host()) {
-      throw invalid_object_error(
-          "This instance of platform doesn't support OpenCL interoperability.",
-          PI_ERROR_INVALID_PLATFORM);
-    }
     return pi::cast<cl_platform_id>(MPlatform);
   }
 
@@ -92,10 +84,6 @@ public:
   ///
   /// \return a raw plug-in platform handle.
   const RT::PiPlatform &getHandleRef() const {
-    if (is_host())
-      throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_ERROR_INVALID_PLATFORM);
-
     return MPlatform;
   }
 

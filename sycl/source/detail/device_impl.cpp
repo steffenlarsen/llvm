@@ -16,11 +16,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-device_impl::device_impl()
-    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()),
-      // assert is natively supported by host
-      MIsAssertFailSupported(true) {}
-
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
@@ -36,7 +31,7 @@ device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
-    : MDevice(Device), MIsHostDevice(false) {
+    : MDevice(Device) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
@@ -76,12 +71,10 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  if (!MIsHostDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    const detail::plugin &Plugin = getPlugin();
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
-  }
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  const detail::plugin &Plugin = getPlugin();
+  RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+  __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
 }
 
 bool device_impl::is_affinity_supported(
@@ -92,11 +85,6 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice) {
-    throw invalid_object_error(
-        "This instance of device doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_DEVICE);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
   return pi::cast<cl_device_id>(getNative());
@@ -107,10 +95,6 @@ platform device_impl::get_platform() const {
 }
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  if (MIsHostDevice)
-    // TODO: implement extension management for host device;
-    return false;
-
   std::string AllExtensionNames = get_device_info_string(
       this->getHandleRef(), PiInfoCode<info::device::extensions>::value,
       this->getPlugin());
@@ -153,13 +137,6 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 }
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
-
-  if (MIsHostDevice)
-    // TODO: implement host device partitioning
-    throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet",
-        PI_ERROR_INVALID_DEVICE);
-
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw sycl::feature_not_supported(
         "Device does not support "
@@ -182,13 +159,6 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
-
-  if (MIsHostDevice)
-    // TODO: implement host device partitioning
-    throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet",
-        PI_ERROR_INVALID_DEVICE);
-
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw sycl::feature_not_supported(
         "Device does not support "
@@ -230,13 +200,6 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
 
 std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
-
-  if (MIsHostDevice)
-    // TODO: implement host device partitioning
-    throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet",
-        PI_ERROR_INVALID_DEVICE);
-
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
     throw sycl::feature_not_supported(
@@ -277,7 +240,7 @@ bool device_impl::has(aspect Aspect) const {
 
   switch (Aspect) {
   case aspect::host:
-    return is_host();
+    return false;
   case aspect::cpu:
     return is_cpu();
   case aspect::gpu:
@@ -311,20 +274,18 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
   case aspect::usm_atomic_host_allocations:
-    return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return get_device_info_impl<
+               pi_usm_capabilities,
+               info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
+           PI_USM_CONCURRENT_ATOMIC_ACCESS;
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return is_host() ||
-           (get_device_info_impl<
-                pi_usm_capabilities,
-                info::device::usm_shared_allocations>::get(MDevice,
-                                                           getPlugin()) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return get_device_info_impl<
+               pi_usm_capabilities,
+               info::device::usm_shared_allocations>::get(MDevice,
+                                                          getPlugin()) &
+           PI_USM_CONCURRENT_ATOMIC_ACCESS;
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -394,13 +355,6 @@ bool device_impl::has(aspect Aspect) const {
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_ERROR_INVALID_DEVICE);
   }
-}
-
-std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
-  static std::shared_ptr<device_impl> HostImpl =
-      std::make_shared<device_impl>();
-
-  return HostImpl;
 }
 
 bool device_impl::isAssertFailSupported() const {

@@ -40,8 +40,6 @@ bool platform::has_extension(const std::string &ExtensionName) const {
   return impl->has_extension(ExtensionName);
 }
 
-bool platform::is_host() const { return impl->is_host(); }
-
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {
   return impl->get_devices(DeviceType);
 }

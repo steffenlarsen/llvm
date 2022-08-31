@@ -34,9 +34,6 @@ using PlatformImplPtr = std::shared_ptr<platform_impl>;
 // TODO: Make code thread-safe
 class device_impl {
 public:
-  /// Constructs a SYCL device instance as a host device.
-  device_impl();
-
   /// Constructs a SYCL device instance using the provided raw device handle.
   explicit device_impl(pi_native_handle, const plugin &Plugin);
 
@@ -61,13 +58,7 @@ public:
   /// For host device an exception is thrown
   ///
   /// \return non-constant reference to PI device
-  RT::PiDevice &getHandleRef() {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
-
-    return MDevice;
-  }
+  RT::PiDevice &getHandleRef() { return MDevice; }
 
   /// Get constant reference to PI device
   ///
@@ -75,34 +66,23 @@ public:
   ///
   /// \return constant reference to PI device
   const RT::PiDevice &getHandleRef() const {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance",
-                                 PI_ERROR_INVALID_DEVICE);
-
     return MDevice;
   }
-
-  /// Check if SYCL device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  bool is_host() const { return MIsHostDevice; }
 
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_CPU)); }
+  bool is_cpu() const { return MType == PI_DEVICE_TYPE_CPU; }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_GPU)); }
+  bool is_gpu() const { return MType == PI_DEVICE_TYPE_GPU; }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const {
-    return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
-  }
+  bool is_accelerator() const { return MType == PI_DEVICE_TYPE_ACC; }
 
   /// Return device type
   ///
@@ -188,9 +168,6 @@ public:
   ///
   /// \return device info of type described in Table 4.20.
   template <typename Param> typename Param::return_type get_info() const {
-    if (is_host()) {
-      return get_device_info_host<Param>();
-    }
     return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
   }
 
@@ -216,11 +193,6 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  /// Gets the single instance of the Host Device
-  ///
-  /// \return the host device_impl singleton
-  static std::shared_ptr<device_impl> getHostDeviceImpl();
-
   bool isAssertFailSupported() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
@@ -233,7 +205,6 @@ private:
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   RT::PiDevice MRootDevice = nullptr;
-  bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;

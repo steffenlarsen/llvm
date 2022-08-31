@@ -439,11 +439,9 @@ public:
   /// \param Impl to the stream object
   void deallocateStreamBuffers(stream_impl *);
 
-  QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
-
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
-  Scheduler();
+  Scheduler() {}
   ~Scheduler();
 
 protected:
@@ -770,8 +768,6 @@ protected:
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
-
-  QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;
