@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/stl.hpp>
@@ -36,10 +37,14 @@ class kernel_impl;
 /// invocation APIs such as single_task.
 class auto_name {};
 
+template <typename Type, typename... PropertyTs>
+class kernel_type_with_properties;
+
 /// Helper struct to get a kernel name type based on given \c Name and \c Type
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
-template <typename Name, typename Type> struct get_kernel_name_t {
+template <typename Name, typename Type, typename PropertiesType = void>
+struct get_kernel_name_t {
   using name = Name;
   static_assert(
       !std::is_same<Name, auto_name>::value,
@@ -52,8 +57,16 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 /// extension, so make sure the specialiation isn't available in that case: the
 /// lack of specialization allows us to trigger static_assert from the primary
 /// definition.
-template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
+template <typename Type, typename PropertiesType>
+struct get_kernel_name_t<detail::auto_name, Type, PropertiesType> {
   using name = Type;
+};
+
+template <typename Type, typename PropertyT0, typename... PropertyTs>
+struct get_kernel_name_t<detail::auto_name, Type,
+                         ext::oneapi::experimental::detail::properties_t<
+                             PropertyT0, PropertyTs...>> {
+  using name = kernel_type_with_properties<Type, PropertyT0, PropertyTs...>;
 };
 #endif // __SYCL_UNNAMED_LAMBDA__
 

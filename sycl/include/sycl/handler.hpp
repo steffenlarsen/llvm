@@ -1000,8 +1000,8 @@ private:
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
         typename TransformUserItemType<Dims, LambdaArgType>::type>::type;
 
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType,
+                                                     PropertiesT>::name;
 
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
 
@@ -1114,8 +1114,8 @@ private:
   void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Properties,
                          _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType,
+                                                     PropertiesT>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
@@ -1169,8 +1169,8 @@ private:
   void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
                                            _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType,
+                                                     PropertiesT>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
@@ -1204,8 +1204,8 @@ private:
                                            range<Dims> WorkGroupSize,
                                            _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType,
+                                                     PropertiesT>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
@@ -1548,8 +1548,8 @@ private:
                 ext::oneapi::experimental::detail::empty_properties_t>
   void single_task_lambda_impl(_KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using NameT = typename detail::get_kernel_name_t<KernelName, KernelType,
+                                                     PropertiesT>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
