@@ -72,3 +72,5 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/root_group/root_group.hpp>
+#include <sycl/ext/oneapi/root_group/root_group_properties.hpp>

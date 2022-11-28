@@ -178,6 +178,19 @@ public:
 
   bool operator!=(const nd_item &rhs) const { return !((*this) == rhs); }
 
+  ext::oneapi::experimental::root_group<dimensions>
+  ext_oneapi_get_root_group() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return detail::Builder::getElement(
+        detail::declptr<ext::oneapi::experimental::root_group<dimensions>>(),
+        *this);
+#else
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Getting the root group of an nd_item is not supported on host");
+#endif
+  }
+
 protected:
   friend class detail::Builder;
   nd_item(const item<dimensions, true> &GL, const item<dimensions, false> &L,

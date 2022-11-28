@@ -34,6 +34,14 @@ template <int Dims> class h_item;
 template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
+namespace ext {
+namespace oneapi {
+namespace experimental {
+template <int Dims> class root_group;
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+
 namespace detail {
 inline void memcpy(void *Dst, const void *Src, size_t Size) {
   char *Destination = reinterpret_cast<char *>(Dst);
@@ -179,6 +187,21 @@ public:
         createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
     item<Dims, false> LocalItem = createItem<Dims, false>(LocalSize, LocalId);
     return createNDItem<Dims>(GlobalItem, LocalItem, Group);
+  }
+
+  template <int Dims>
+  static const ext::oneapi::experimental::root_group<Dims>
+  getElement(ext::oneapi::experimental::root_group<Dims> *,
+             nd_item<Dims> Item) {
+    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    return ext::oneapi::experimental::root_group<Dims>(Item);
+  }
+
+  template <int Dims>
+  static const ext::oneapi::experimental::root_group<Dims>
+  getElement(ext::oneapi::experimental::root_group<Dims> *) {
+    return getElement(declptr<ext::oneapi::experimental::root_group<Dims>>(),
+                      getElement(declptr<nd_item<Dims>>()));
   }
 
   template <int Dims, bool WithOffset>
