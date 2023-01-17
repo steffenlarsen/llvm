@@ -1213,7 +1213,7 @@ public:
   // otherwise
   using value_type = typename std::conditional<AccessMode == access_mode::read,
                                                const DataT, DataT>::type;
-  using reference = DataT &;
+  using reference = value_type &;
   using const_reference = const DataT &;
 
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
@@ -2038,7 +2038,7 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
-  DataT *get_pointer() const {
+  std::add_pointer_t<value_type> get_pointer() const {
     return getPointerAdjusted();
   }
 
@@ -2455,7 +2455,7 @@ protected:
 
 public:
   using value_type = DataT;
-  using reference = DataT &;
+  using reference = value_type &;
   using const_reference = const DataT &;
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
