@@ -179,46 +179,46 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+              is_geninteger<_T>::value, Reducer &>
   operator++() {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
   enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-              is_geninteger<_T>::value>
+              is_geninteger<_T>::value, Reducer &>
   operator++(int) {
-    static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
+    return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value, Reducer &>
   operator+=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value, Reducer &>
   operator*=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value, Reducer &>
   operator|=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value, Reducer &>
   operator^=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value, Reducer &>
   operator&=(const _T &Partial) {
-    static_cast<Reducer *>(this)->combine(Partial);
+    return static_cast<Reducer *>(this)->combine(Partial);
   }
 
 private:
