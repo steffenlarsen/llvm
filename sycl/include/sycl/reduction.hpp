@@ -339,7 +339,10 @@ public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
+  reducer &combine(const T &Partial) {
+    MValue = MBinaryOp(MValue, Partial);
+    return *this;
+  }
 
   T getIdentity() const { return MIdentity; }
 
@@ -371,9 +374,10 @@ public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
 
-  void combine(const T &Partial) {
+  reducer &combine(const T &Partial) {
     BinaryOperation BOp;
     MValue = BOp(MValue, Partial);
+    return *this;
   }
 
   static T getIdentity() {
@@ -396,7 +400,10 @@ class reducer<T, BinaryOperation, Dims, Extent, View,
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
 
-  void combine(const T &Partial) { MElement = MBinaryOp(MElement, Partial); }
+  reducer &combine(const T &Partial) {
+    MElement = MBinaryOp(MElement, Partial);
+    return *this;
+  }
 
 private:
   T &MElement;
@@ -823,6 +830,7 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
 namespace reduction {
 template <typename KernelName, strategy S, class... Ts> struct MainKrn;
 template <typename KernelName, strategy S, class... Ts> struct AuxKrn;
+template <typename KernelName, aspect A> struct AspectDepKrn;
 } // namespace reduction
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
@@ -2147,8 +2155,12 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
     };
 
     if constexpr (Reduction::has_float64_atomics) {
+      // Device aspect needs to be checked at runtime and therefore may generate
+      // a conflicting kernel.
       if (getDeviceFromHandler(CGH).has(aspect::atomic64))
-        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
+        return Impl<Strat::group_reduce_and_atomic_cross_wg>{}
+            .run<reduction::AspectDepKrn<KernelName, aspect::atomic64>>(
+                CGH, Queue, NDRange, Properties, Redu, KernelFunc);
 
       if constexpr (Reduction::has_fast_reduce)
         return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
@@ -2329,7 +2341,7 @@ template <
 detail::reduction_impl<
     T, BinaryOperation, 0, 1,
     accessor<T, 1, access::mode::read_write, access::target::device,
-             access::placeholder::true_t,
+             access::placeholder::false_t,
              ext::oneapi::accessor_property_list<>>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
