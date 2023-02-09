@@ -14,8 +14,82 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/half_type.hpp>
 
+#include <type_traits>
+#include <array>
+#include <utility>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+template <typename DataT, std::size_t N> class marray;
+
+namespace detail {
+template <typename... Ts> struct GetMArrayArgsSize;
+template <> struct GetMArrayArgsSize<> {
+  static constexpr std::size_t value = 0;
+};
+template <typename T, std::size_t N, typename... Ts>
+struct GetMArrayArgsSize<marray<T, N>, Ts...> {
+  static constexpr std::size_t value = N + GetMArrayArgsSize<Ts...>::value;
+};
+template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
+  static constexpr std::size_t value = 1 + GetMArrayArgsSize<Ts...>::value;
+};
+
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility trait for creating an std::array from an marray.
+// FIXME: This is currently a friend of marray as it needs to access MData of
+//        marray. If the subscript operator is made constexpr it can be moved
+//        outside.
+template <typename DataT, typename T, std::size_t... Is>
+constexpr std::array<T, sizeof...(Is)>
+MArrayToArray(const marray<T, sizeof...(Is)> &A, std::index_sequence<Is...>) {
+  return {static_cast<DataT>(A.MData[Is])...};
+}
+template <typename DataT, typename T, std::size_t N>
+constexpr std::array<T, N> MArrayToArray(const marray<T, N> &A) {
+  return MArrayToArray<DataT>(A, std::make_index_sequence<N>());
+}
+
+// Utility for creating an std::array from a arguments of either types
+// convertible to DataT or marrays of a type convertible to DataT.
+template <typename DataT, typename... ArgTN> struct ArrayCreator;
+template <typename DataT, typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, ArgT, ArgTN...> {
+  static constexpr std::array<DataT, GetMArrayArgsSize<ArgT, ArgTN...>::value>
+  Create(const ArgT &Arg, const ArgTN &...Args) {
+    return ConcatArrays(std::array<DataT, 1>{static_cast<DataT>(Arg)},
+                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+  }
+};
+template <typename DataT, typename T, std::size_t N, typename... ArgTN>
+struct ArrayCreator<DataT, marray<T, N>, ArgTN...> {
+  static constexpr std::array<DataT,
+                              GetMArrayArgsSize<marray<T, N>, ArgTN...>::value>
+  Create(const marray<T, N> &Arg, const ArgTN &...Args) {
+    return ConcatArrays(MArrayToArray<DataT>(Arg),
+                        ArrayCreator<DataT, ArgTN...>::Create(Args...));
+  }
+};
+template <typename DataT> struct ArrayCreator<DataT> {
+  static constexpr std::array<DataT, 0> Create() {
+    return std::array<DataT, 0>{};
+  }
+};
+} // namespace detail
 
 /// Provides a cross-platform math array class template that works on
 /// SYCL devices as well as in host C++ code.
@@ -34,25 +108,35 @@ public:
 private:
   value_type MData[NumElements];
 
-  template <class...> struct conjunction : std::true_type {};
-  template <class B1, class... tail>
-  struct conjunction<B1, tail...>
-      : std::conditional<bool(B1::value), conjunction<tail...>, B1>::type {};
+  // Trait for checking if an argument type is either convertible to the data
+  // type or an array of types convertible to the data type.
+  template <typename T>
+  struct IsSuitableArgType : std::is_convertible<T, DataT> {};
+  template <typename T, size_t N>
+  struct IsSuitableArgType<marray<T, N>> : std::is_convertible<T, DataT> {};
 
-  // TypeChecker is needed for (const ArgTN &... Args) ctor to validate Args.
-  template <typename T, typename DataT_>
-  struct TypeChecker : std::is_convertible<T, DataT_> {};
-
-  // Shortcuts for Args validation in (const ArgTN &... Args) ctor.
+  // Trait for computing the conjunction of of IsSuitableArgType. The empty type
+  // list will trivially evaluate to true.
   template <typename... ArgTN>
-  using EnableIfSuitableTypes = typename std::enable_if<
-      conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
+  struct AllSuitableArgTypes : std::conjunction<IsSuitableArgType<ArgTN>...> {};
+
+  // FIXME: MArrayToArray needs to be a friend to access MData. If the subscript
+  //        operator is made constexpr this can be removed.
+  template <typename, typename T, std::size_t... Is>
+  friend constexpr std::array<T, sizeof...(Is)>
+  detail::MArrayToArray(const marray<T, sizeof...(Is)> &,
+                        std::index_sequence<Is...>);
 
   constexpr void initialize_data(const Type &Arg) {
     for (size_t i = 0; i < NumElements; ++i) {
       MData[i] = Arg;
     }
   }
+
+  template <size_t... Is>
+  constexpr marray(const std::array<DataT, NumElements> &Arr,
+                   std::index_sequence<Is...>)
+      : MData{Arr[Is]...} {}
 
 public:
   constexpr marray() : MData{} {}
@@ -61,10 +145,13 @@ public:
     initialize_data(Arg);
   }
 
-  template <
-      typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
-      typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  constexpr marray(const ArgTN &...Args) : MData{static_cast<Type>(Args)...} {}
+  template <typename... ArgTN,
+            typename = std::enable_if_t<
+                detail::GetMArrayArgsSize<ArgTN...>::value == NumElements &&
+                AllSuitableArgTypes<ArgTN...>::value>>
+  constexpr marray(const ArgTN &...Args)
+      : marray{detail::ArrayCreator<DataT, ArgTN...>::Create(Args...),
+               std::make_index_sequence<NumElements>()} {}
 
   constexpr marray(const marray<Type, NumElements> &Rhs) = default;
 
@@ -128,6 +215,15 @@ public:
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
+  template <typename T>                                                        \
+  friend typename std::enable_if<                                              \
+      std::is_convertible<DataT, T>::value &&                                  \
+          (std::is_fundamental<T>::value ||                                    \
+           std::is_same<typename std::remove_const<T>::type, half>::value),    \
+      marray>::type                                                            \
+  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+    return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
+  }                                                                            \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
@@ -156,6 +252,14 @@ public:
                                  marray>::type                                 \
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
+  }                                                                            \
+  template <typename T, typename BaseT = DataT>                                \
+  friend typename std::enable_if<std::is_convertible<T, DataT>::value &&       \
+                                     std::is_integral<T>::value &&             \
+                                     std::is_integral<BaseT>::value,           \
+                                 marray>::type                                 \
+  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+    return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   template <typename T = DataT,                                                \
             typename = std::enable_if<std::is_integral<T>::value, marray>>     \
@@ -209,26 +313,14 @@ public:
                                  marray<bool, NumElements>>::type              \
   operator RELLOGOP(const marray &Lhs, const T &Rhs) {                         \
     return Lhs RELLOGOP marray(static_cast<const DataT &>(Rhs));               \
-  }
-
-#define __SYCL_RELLOGOP_INTEGRAL(RELLOGOP)                                     \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value,                   \
-                                 marray<bool, NumElements>>::type              \
-  operator RELLOGOP(const marray &Lhs, const marray &Rhs) {                    \
-    marray<bool, NumElements> Ret;                                             \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] RELLOGOP Rhs[I];                                         \
-    }                                                                          \
-    return Ret;                                                                \
   }                                                                            \
-  template <typename T, typename BaseT = DataT>                                \
+  template <typename T>                                                        \
   friend typename std::enable_if<std::is_convertible<T, DataT>::value &&       \
-                                     std::is_integral<T>::value &&             \
-                                     std::is_integral<BaseT>::value,           \
+                                     (std::is_fundamental<T>::value ||         \
+                                      std::is_same<T, half>::value),           \
                                  marray<bool, NumElements>>::type              \
-  operator RELLOGOP(const marray &Lhs, const T &Rhs) {                         \
-    return Lhs RELLOGOP marray(static_cast<const DataT &>(Rhs));               \
+  operator RELLOGOP(const T &Lhs, const marray &Rhs) {                         \
+    return marray(static_cast<const DataT &>(Lhs)) RELLOGOP Rhs;               \
   }
 
   __SYCL_RELLOGOP(==)
@@ -237,9 +329,8 @@ public:
   __SYCL_RELLOGOP(<)
   __SYCL_RELLOGOP(>=)
   __SYCL_RELLOGOP(<=)
-
-  __SYCL_RELLOGOP_INTEGRAL(&&)
-  __SYCL_RELLOGOP_INTEGRAL(||)
+  __SYCL_RELLOGOP(&&)
+  __SYCL_RELLOGOP(||)
 
 #undef __SYCL_RELLOGOP
 #undef __SYCL_RELLOGOP_INTEGRAL
@@ -304,22 +395,27 @@ public:
   using ALIAS##N = sycl::marray<TYPE, N>;
 
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
-  __SYCL_MAKE_MARRAY_ALIAS(mchar, char, N)                                     \
-  __SYCL_MAKE_MARRAY_ALIAS(mshort, short, N)                                   \
-  __SYCL_MAKE_MARRAY_ALIAS(mint, int, N)                                       \
-  __SYCL_MAKE_MARRAY_ALIAS(mlong, long, N)                                     \
+  __SYCL_MAKE_MARRAY_ALIAS(mbool, bool, N)                                     \
+  __SYCL_MAKE_MARRAY_ALIAS(mchar, std::int8_t, N)                              \
+  __SYCL_MAKE_MARRAY_ALIAS(mshort, std::int16_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mint, std::int32_t, N)                              \
+  __SYCL_MAKE_MARRAY_ALIAS(mlong, std::int64_t, N)                             \
+  __SYCL_MAKE_MARRAY_ALIAS(mlonglong, std::int64_t, N)                         \
   __SYCL_MAKE_MARRAY_ALIAS(mfloat, float, N)                                   \
   __SYCL_MAKE_MARRAY_ALIAS(mdouble, double, N)                                 \
   __SYCL_MAKE_MARRAY_ALIAS(mhalf, half, N)
 
+// FIXME: schar, longlong and ulonglong aliases are not defined by SYCL 2020
+//        spec, but they are preserved in SYCL 2020 mode, because SYCL-CTS is
+//        still using them.
+//        See KhronosGroup/SYCL-CTS#446 and KhronosGroup/SYCL-Docs#335
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
-  __SYCL_MAKE_MARRAY_ALIAS(mschar, signed char, N)                             \
-  __SYCL_MAKE_MARRAY_ALIAS(muchar, unsigned char, N)                           \
-  __SYCL_MAKE_MARRAY_ALIAS(mushort, unsigned short, N)                         \
-  __SYCL_MAKE_MARRAY_ALIAS(muint, unsigned int, N)                             \
-  __SYCL_MAKE_MARRAY_ALIAS(mulong, unsigned long, N)                           \
-  __SYCL_MAKE_MARRAY_ALIAS(mlonglong, long long, N)                            \
-  __SYCL_MAKE_MARRAY_ALIAS(mulonglong, unsigned long long, N)
+  __SYCL_MAKE_MARRAY_ALIAS(mschar, std::int8_t, N)                             \
+  __SYCL_MAKE_MARRAY_ALIAS(muchar, std::uint8_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mushort, std::uint16_t, N)                          \
+  __SYCL_MAKE_MARRAY_ALIAS(muint, std::uint32_t, N)                            \
+  __SYCL_MAKE_MARRAY_ALIAS(mulong, std::uint64_t, N)                           \
+  __SYCL_MAKE_MARRAY_ALIAS(mulonglong, std::uint64_t, N)
 
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(N)                        \
   __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES(N)                           \
