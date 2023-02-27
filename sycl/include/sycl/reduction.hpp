@@ -1630,17 +1630,6 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           CGH)...);
 }
 
-template <typename... LocalAccT, typename... BOPsT, size_t... Is>
-void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
-                         ReduTupleT<LocalAccT...> LocalAccs,
-                         ReduTupleT<BOPsT...> BOPs,
-                         std::index_sequence<Is...>) {
-  auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
-    LocalAcc[IndexA] = BOp(LocalAcc[IndexA], LocalAcc[IndexB]);
-  };
-  (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
-}
-
 template <typename... LocalAccT, typename... BOPsT, size_t... Is,
           typename BarrierTy>
 void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
@@ -1649,7 +1638,10 @@ void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
                             std::index_sequence<Is...> ReduIndices,
                             BarrierTy Barrier) {
   doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    reduceReduLocalAccs(I, J, LocalAccs, BOPs, ReduIndices);
+    auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
+      LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);
+    };
+    (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
   });
 }
 
