@@ -1643,11 +1643,11 @@ void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
 
 template <typename... LocalAccT, typename... BOPsT, size_t... Is,
           typename BarrierTy>
-void doTreeReduction(size_t WorkSize, size_t LID,
-                     ReduTupleT<LocalAccT...> &LocalAccs,
-                     ReduTupleT<BOPsT...> &BOPs,
-                     std::index_sequence<Is...> ReduIndices,
-                     BarrierTy Barrier) {
+void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
+                            ReduTupleT<LocalAccT...> &LocalAccs,
+                            ReduTupleT<BOPsT...> &BOPs,
+                            std::index_sequence<Is...> ReduIndices,
+                            BarrierTy Barrier) {
   doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
     reduceReduLocalAccs(I, J, LocalAccs, BOPs, ReduIndices);
   });
@@ -1775,8 +1775,8 @@ void reduCGFuncImplScalar(
         getReducerAccess(std::get<Is>(ReducersTuple)).getElement(0)),
    ...);
 
-  doTreeReduction(WGSize, LID, LocalAccsTuple, BOPsTuple, ReduIndices,
-                  [&]() { NDIt.barrier(); });
+  doTreeReductionOnTuple(WGSize, LID, LocalAccsTuple, BOPsTuple, ReduIndices,
+                         [&]() { NDIt.barrier(); });
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
@@ -1947,8 +1947,8 @@ void reduAuxCGFuncImplScalar(
   if (LID < RemainingWorkSize)
     ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(InAccsTuple)[GID]), ...);
 
-  doTreeReduction(RemainingWorkSize, LID, LocalAccsTuple, BOPsTuple,
-                  ReduIndices, [&]() { NDIt.barrier(); });
+  doTreeReductionOnTuple(RemainingWorkSize, LID, LocalAccsTuple, BOPsTuple,
+                         ReduIndices, [&]() { NDIt.barrier(); });
 
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
