@@ -1151,6 +1151,24 @@ void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
                         });
 }
 
+// TODO: For variadics/tuples we don't provide such a high-level abstraction as
+// for the scalar case above. Is there some C++ magic to level them?
+// TODO2: Document differences in APIs.
+template <typename... LocalAccT, typename... BOPsT, size_t... Is,
+          typename BarrierTy>
+void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
+                            ReduTupleT<LocalAccT...> &LocalAccs,
+                            ReduTupleT<BOPsT...> &BOPs,
+                            std::index_sequence<Is...> ReduIndices,
+                            BarrierTy Barrier) {
+  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
+    auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
+      LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);
+    };
+    (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
+  });
+}
+
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
@@ -1628,21 +1646,6 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           NWorkGroups *
               std::tuple_element_t<Is, std::tuple<Reductions...>>::num_elements,
           CGH)...);
-}
-
-template <typename... LocalAccT, typename... BOPsT, size_t... Is,
-          typename BarrierTy>
-void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
-                            ReduTupleT<LocalAccT...> &LocalAccs,
-                            ReduTupleT<BOPsT...> &BOPs,
-                            std::index_sequence<Is...> ReduIndices,
-                            BarrierTy Barrier) {
-  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    auto ProcessOne = [=](auto &LocalAcc, auto &BOp) {
-      LocalAcc[I] = BOp(LocalAcc[I], LocalAcc[J]);
-    };
-    (ProcessOne(std::get<Is>(LocalAccs), std::get<Is>(BOPs)), ...);
-  });
 }
 
 template <typename... Reductions, typename... OutAccT, typename... LocalAccT,
