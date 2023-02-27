@@ -1142,17 +1142,27 @@ template <bool WorkSizeNotGreaterThanWGSize = false, int Dim, typename LocalReds
           typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
 void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
                      BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
-  // auto NDRange = NDIt.get_global_range();
-  // size_t WGSize = NDRange.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
+  size_t AdjustedWorkSize;
   if constexpr (WorkSizeNotGreaterThanWGSize) {
     if (LID < WorkSize)
       LocalReds[LID] = AccessFunc(LID);
+    AdjustedWorkSize = WorkSize;
   } else {
+    size_t WGSize = NDIt.get_local_range().size();
+    AdjustedWorkSize = std::min(WorkSize, WGSize);
+    if (LID < AdjustedWorkSize) {
+      auto LocalSum = AccessFunc(LID);
+      for (size_t I = LID + WGSize; I < WorkSize; I += WGSize)
+        LocalSum = BOp(LocalSum, AccessFunc(I));
+
+      LocalReds[LID] = LocalSum;
+    }
   }
-  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
-  });
+  doTreeReductionHelper(AdjustedWorkSize, LID, Barrier,
+                        [&](size_t I, size_t J) {
+                          LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
+                        });
 }
 
 template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy>
@@ -1228,19 +1238,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
         for (int E = 0; E < NElements; ++E) {
-          // The last work-group may not have enough work for all its items.
-          size_t RemainingWorkSize = std::min(NWorkGroups, WGSize);
-
-          if (LID < RemainingWorkSize) {
-            auto LocalSum = PartialSums[LID * NElements + E];
-            for (size_t I = LID + WGSize; I < NWorkGroups; I += WGSize)
-              LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-
-            LocalReds[LID] = LocalSum;
-          }
-
-          doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                          [&]() { workGroupBarrier(); });
+          doTreeReduction(
+              NWorkGroups, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
+              [&](size_t I) { return PartialSums[I * NElements + E]; });
           if (LID == 0) {
             auto V = LocalReds[0];
             if (IsUpdateOfUserVar)
