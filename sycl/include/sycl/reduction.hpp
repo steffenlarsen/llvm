@@ -1124,12 +1124,32 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
   }
 }
 
-template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy,
-          typename AccessFuncTy>
+template <bool WorkSizeNotGreaterThanWGSize = false, typename LocalRedsTy,
+          typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
 void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
                      BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
-  if (LID < WorkSize)
-    LocalReds[LID] = AccessFunc(LID);
+  if constexpr (WorkSizeNotGreaterThanWGSize) {
+    if (LID < WorkSize)
+      LocalReds[LID] = AccessFunc(LID);
+  } else {
+  }
+  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
+    LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
+  });
+}
+
+template <bool WorkSizeNotGreaterThanWGSize = false, int Dim, typename LocalRedsTy,
+          typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
+void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
+                     BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
+  // auto NDRange = NDIt.get_global_range();
+  // size_t WGSize = NDRange.get_local_range().size();
+  size_t LID = NDIt.get_local_linear_id();
+  if constexpr (WorkSizeNotGreaterThanWGSize) {
+    if (LID < WorkSize)
+      LocalReds[LID] = AccessFunc(LID);
+  } else {
+  }
   doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
     LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
   });
@@ -1138,8 +1158,8 @@ void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
 template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy>
 void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
                      BinOpTy &BOp, BarrierTy Barrier) {
-  doTreeReduction(WorkSize, LID, LocalReds, BOp, Barrier,
-                  [&](size_t LID) { return LocalReds[LID]; });
+  doTreeReduction<true>(WorkSize, LID, LocalReds, BOp, Barrier,
+                        [&](size_t LID) { return LocalReds[LID]; });
 }
 
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
@@ -1180,11 +1200,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       size_t LID = NDId.get_local_linear_id();
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-        doTreeReduction(WGSize, LID, LocalReds, BOp,
-                        [&]() { workGroupBarrier(); });
+        doTreeReduction<true>(
+            WGSize, NDId, LocalReds, BOp, [&]() { workGroupBarrier(); },
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         if (LID == 0) {
           auto V = LocalReds[0];
@@ -1303,12 +1321,10 @@ struct NDRangeReduction<
         // This prevents local memory from scaling with elements
         for (int E = 0; E < NElements; ++E) {
 
-          // Copy the element to local memory to prepare it for tree-reduction.
-          LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
           typename Reduction::binary_operation BOp;
-          doTreeReduction(WGSize, LID, LocalReds, BOp,
-                          [&]() { NDIt.barrier(); });
+          doTreeReduction<true>(
+              WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+              [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
           if (LID == 0)
             getReducerAccess(Reducer).getElement(E) = LocalReds[0];
@@ -1509,10 +1525,9 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       // This prevents local memory from scaling with elements
       for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-        doTreeReduction(WGSize, LID, LocalReds, BOp, [&]() { NDIt.barrier(); });
+        doTreeReduction<true>(
+            WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+            [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
@@ -1591,13 +1606,10 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
             size_t RemainingWorkSize =
                 sycl::min(WGSize, NWorkItems - GrID * WGSize);
 
-            // Copy the element to local memory to prepare it for
-            // tree-reduction.
-            if (LID < RemainingWorkSize)
-              LocalReds[LID] = In[GID * NElements + E];
-
-            doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                            [&]() { NDIt.barrier(); });
+            doTreeReduction<true>(
+                RemainingWorkSize, NDIt, LocalReds, BOp,
+                [&]() { NDIt.barrier(); },
+                [&](size_t) { return In[GID * NElements + E]; });
 
             // Compute the partial sum/reduction for the work-group.
             if (LID == 0) {
@@ -1810,11 +1822,9 @@ void reduCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-
-    // Copy the element to local memory to prepare it for tree-reduction.
-    LocalReds[LID] = getReducerAccess(Reducer).getElement(E);
-
-    doTreeReduction(WGSize, LID, LocalReds, BOp, [&]() { NDIt.barrier(); });
+    doTreeReduction<true>(
+        WGSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+        [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
@@ -1982,13 +1992,9 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
   // This prevents local memory from scaling with elements
   auto NElements = Reduction::num_elements;
   for (size_t E = 0; E < NElements; ++E) {
-    // The end work-group may have less work than the rest, so we only need to
-    // read the value of the elements that still have work left.
-    if (LID < RemainingWorkSize)
-      LocalReds[LID] = In[GID * NElements + E];
-
-    doTreeReduction(RemainingWorkSize, LID, LocalReds, BOp,
-                    [&]() { NDIt.barrier(); });
+    doTreeReduction<true>(
+        RemainingWorkSize, NDIt, LocalReds, BOp, [&]() { NDIt.barrier(); },
+        [&](size_t) { return In[GID * NElements + E]; });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
