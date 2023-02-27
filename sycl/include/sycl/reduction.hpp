@@ -1124,20 +1124,6 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, BarrierTy Barrier,
   }
 }
 
-template <bool WorkSizeNotGreaterThanWGSize = false, typename LocalRedsTy,
-          typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
-void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
-                     BinOpTy &BOp, BarrierTy Barrier, AccessFuncTy AccessFunc) {
-  if constexpr (WorkSizeNotGreaterThanWGSize) {
-    if (LID < WorkSize)
-      LocalReds[LID] = AccessFunc(LID);
-  } else {
-  }
-  doTreeReductionHelper(WorkSize, LID, Barrier, [&](size_t I, size_t J) {
-    LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
-  });
-}
-
 template <bool WorkSizeNotGreaterThanWGSize = false, int Dim, typename LocalRedsTy,
           typename BinOpTy, typename BarrierTy, typename AccessFuncTy>
 void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
@@ -1163,13 +1149,6 @@ void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
                         [&](size_t I, size_t J) {
                           LocalReds[I] = BOp(LocalReds[I], LocalReds[J]);
                         });
-}
-
-template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy>
-void doTreeReduction(size_t WorkSize, size_t LID, LocalRedsTy &LocalReds,
-                     BinOpTy &BOp, BarrierTy Barrier) {
-  doTreeReduction<true>(WorkSize, LID, LocalReds, BOp, Barrier,
-                        [&](size_t LID) { return LocalReds[LID]; });
 }
 
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
