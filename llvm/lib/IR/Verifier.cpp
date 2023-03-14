@@ -786,8 +786,6 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
                        GV.getName() == "llvm.compiler.used")) {
     Check(!GV.hasInitializer() || GV.hasAppendingLinkage(),
           "invalid linkage for intrinsic global variable", &GV);
-    Check(GV.materialized_use_empty(),
-          "invalid uses of intrinsic global variable", &GV);
 
     Type *GVType = GV.getValueType();
     if (ArrayType *ATy = dyn_cast<ArrayType>(GVType)) {
