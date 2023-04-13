@@ -1199,9 +1199,135 @@ using __sycl_reduction_kernel =
     std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
                        MainOrAux<KernelName, Strategy, Ts...>>;
 
+
+// Helper structs for working with lists of strategies.
+template <reduction::strategy... Strategies> struct StrategyList {};
+
+// Prepends a reduction strategy to a strategy list.
+template <reduction::strategy Strat, typename StratList> struct PrependStrategy;
+template <reduction::strategy Strat, reduction::strategy... Strategies>
+struct PrependStrategy<Strat, StrategyList<Strategies...>> {
+  using type = StrategyList<Strat, Strategies...>;
+};
+
+// Strategy marker used for deducing strategies at compile-time in lambda
+// expression arguments.
+template <reduction::strategy Strategy> struct StrategyMarker {
+  static constexpr reduction::strategy strategy = Strategy;
+};
+
+// Wrapper around a reduction strategy to allow for filtering strategies.
+template <reduction::strategy Strategy, bool Include>
+struct ConditionalStrategy {};
+template <reduction::strategy Strategy>
+using AlwaysConsiderStrategy = ConditionalStrategy<Strategy, true>;
+
+// Creates a list of strategies from an arbitrary number of ConditionalStrategy
+// template arguments, including only those with `true` in the second argument.
+template <typename... CondStrats> struct FilteredStrategyList;
+template <reduction::strategy Strat, typename... Rest>
+struct FilteredStrategyList<ConditionalStrategy<Strat, true>, Rest...> {
+  using type = typename PrependStrategy<
+      Strat, typename FilteredStrategyList<Rest...>::type>::type;
+};
+template <reduction::strategy Strat, typename... Rest>
+struct FilteredStrategyList<ConditionalStrategy<Strat, false>, Rest...> {
+  using type = typename FilteredStrategyList<Rest...>::type;
+};
+template <> struct FilteredStrategyList<> {
+  using type = StrategyList<>;
+};
+
 // Implementations.
 
-template <reduction::strategy> struct NDRangeReduction;
+template <reduction::strategy>
+struct NDRangeReduction;
+
+// Hepler trait used for creating a strategy list with only the minimal list of
+// reduction strategies. The minimal list contains all strategies in StratList
+// that satisfy all compile-time requirements and ends with either the end of
+// StratList or the first element in the list that satisfy all compile-time
+// requirements AND has no runtime requirements.
+template <typename Reduction, typename StratList, typename Cond = void>
+struct MinimalStrategyListHelper;
+template <typename Reduction, reduction::strategy Strat,
+          reduction::strategy... Rest>
+struct MinimalStrategyListHelper<
+    Reduction, StrategyList<Strat, Rest...>,
+    std::enable_if_t<
+        !NDRangeReduction<Strat>::template IsCompileTimeUnupported<Reduction> &&
+        NDRangeReduction<Strat>::template HasRuntimeRequirement<Reduction>>> {
+  // Specialization where Strat satisfies all compile-time requirements and has
+  // runtime requirements. It is kept in the result list.
+  using type = typename PrependStrategy<
+      Strat, typename MinimalStrategyListHelper<
+                 Reduction, StrategyList<Rest...>>::type>::type;
+};
+template <typename Reduction, reduction::strategy Strat,
+          reduction::strategy... Rest>
+struct MinimalStrategyListHelper<
+    Reduction, StrategyList<Strat, Rest...>,
+    std::enable_if_t<
+        !NDRangeReduction<Strat>::template IsCompileTimeUnupported<Reduction> &&
+        !NDRangeReduction<Strat>::template HasRuntimeRequirement<Reduction>>> {
+  // Specialization where Strat satisfies all compile-time requirements and does
+  // NOT have runtime requirements. In this case, we know that the
+  // implementation will never need to consider any other strategies after this,
+  // so it is the end of the new list.
+  using type = StrategyList<Strat>;
+};
+template <typename Reduction, reduction::strategy Strat,
+          reduction::strategy... Rest>
+struct MinimalStrategyListHelper<
+    Reduction, StrategyList<Strat, Rest...>,
+    std::enable_if_t<
+        NDRangeReduction<Strat>::template IsCompileTimeUnupported<Reduction>>> {
+  // Specialization where Strat  does NOT satisfies the compile-time
+  // requirements, so it is removed from the list.
+  using type = typename MinimalStrategyListHelper<Reduction,
+                                                  StrategyList<Rest...>>::type;
+};
+template <typename Reduction>
+struct MinimalStrategyListHelper<Reduction, StrategyList<>> {
+  using type = StrategyList<>;
+};
+
+// Creates a minimal filtered strategy list. See MinimalStrategyListHelper and
+// FilteredStrategyList.
+template <typename Reduction, typename... CondStrategies>
+struct MinimalStrategyList
+    : MinimalStrategyListHelper<
+          Reduction, typename FilteredStrategyList<CondStrategies...>::type> {};
+
+template <typename Reduction, typename StratList> struct StrategyDispatcher;
+template <typename Reduction, reduction::strategy Strat,
+          reduction::strategy... Rest>
+struct StrategyDispatcher<Reduction, StrategyList<Strat, Rest...>> {
+  template <typename DispatchFunc>
+  static void Dispatch(const device &Device, DispatchFunc &F) {
+    std::ignore = Device; // Avoid unused argument warnings.
+    if constexpr (!NDRangeReduction<Strat>::template HasRuntimeRequirement<
+                      Reduction>) {
+      F(StrategyMarker<Strat>{});
+    } else {
+      if (NDRangeReduction<Strat>::template CheckRuntimeRequirements<Reduction>(
+              Device)) {
+        F(StrategyMarker<Strat>{});
+      } else {
+        StrategyDispatcher<Reduction, StrategyList<Rest...>>::Dispatch(Device,
+                                                                       F);
+      }
+    }
+  }
+};
+template <typename Reduction>
+struct StrategyDispatcher<Reduction, StrategyList<>> {
+  template <typename DispatchFunc>
+  static void Dispatch(const device &, DispatchFunc &) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "No suitable reduction strategy could be selected.");
+  }
+};
 
 template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
@@ -1250,6 +1376,21 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
         }
       });
     });
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = !Reduction::has_identity;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement =
+      sizeof(typename Reduction::result_type) == 8;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &Device) {
+    std::ignore = Device; // Avoid unused warnings.
+    if constexpr (sizeof(typename Reduction::result_type) == 8)
+      return Device.has(aspect::atomic64);
+    return true;
   }
 };
 
@@ -1354,6 +1495,21 @@ struct NDRangeReduction<
       Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
     else
       Rest(Redu.getGroupsCounterAccDiscrete(CGH));
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = !Reduction::has_identity;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = true;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &Device) {
+    std::vector<memory_order> SupportedMemoryOrders =
+        Device.get_info<info::device::atomic_memory_order_capabilities>();
+    return std::find(SupportedMemoryOrders.cbegin(),
+                     SupportedMemoryOrders.cend(),
+                     memory_order::acq_rel) != SupportedMemoryOrders.end();
   }
 };
 
@@ -1555,6 +1711,21 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       }
     });
   }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = false;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = true;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &Device) {
+    std::vector<memory_order> SupportedMemoryOrders =
+        Device.get_info<info::device::atomic_memory_order_capabilities>();
+    return std::find(SupportedMemoryOrders.cbegin(),
+                     SupportedMemoryOrders.cend(),
+                     memory_order::acq_rel) != SupportedMemoryOrders.end();
+  }
 };
 
 template <>
@@ -1589,6 +1760,21 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
           Reducer.atomic_combine(&Out[0]);
       });
     });
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = !Reduction::has_identity;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement =
+      sizeof(typename Reduction::result_type) == 8;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &Device) {
+    std::ignore = Device; // Avoid unused warnings.
+    if constexpr (sizeof(typename Reduction::result_type) == 8)
+      return Device.has(aspect::atomic64);
+    return true;
   }
 };
 
@@ -1650,6 +1836,21 @@ struct NDRangeReduction<
         }
       });
     });
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = false;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement =
+      sizeof(typename Reduction::result_type) == 8;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &Device) {
+    std::ignore = Device; // Avoid unused warnings.
+    if constexpr (sizeof(typename Reduction::result_type) == 8)
+      return Device.has(aspect::atomic64);
+    return true;
   }
 };
 
@@ -1790,6 +1991,17 @@ struct NDRangeReduction<
         reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = !Reduction::has_identity;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = false;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &) {
+    return true;
   }
 };
 
@@ -2004,6 +2216,17 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       else
         Rest(KernelMultipleWGTag{});
     } // end while (NWorkItems > 1)
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = false;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = false;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &) {
+    return true;
   }
 };
 
@@ -2604,6 +2827,17 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
       });
     } // end while (NWorkItems > 1)
   }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = false;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = false;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &) {
+    return true;
+  }
 };
 
 // Auto-dispatch. Must be the last one.
@@ -2613,38 +2847,44 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   using Impl = NDRangeReduction<Strategy>;
   using Strat = reduction::strategy;
 
+  template <typename Reduction>
+  using Float64AtomicsStrats = typename MinimalStrategyList<
+      Reduction,
+      AlwaysConsiderStrategy<Strat::group_reduce_and_atomic_cross_wg>,
+      ConditionalStrategy<Strat::group_reduce_and_multiple_kernels,
+                          Reduction::has_fast_reduce>,
+      AlwaysConsiderStrategy<Strat::basic>>::type;
+  template <typename Reduction>
+  using FastAtomicsStrats = typename MinimalStrategyList<
+      Reduction,
+      AlwaysConsiderStrategy<Strat::group_reduce_and_atomic_cross_wg>,
+      ConditionalStrategy<Strat::local_mem_tree_and_atomic_cross_wg,
+                          Reduction::has_fast_reduce>,
+      AlwaysConsiderStrategy<Strat::basic>>::type;
+  template <typename Reduction>
+  using ElseStrats = typename MinimalStrategyList<
+      Reduction,
+      ConditionalStrategy<Strat::group_reduce_and_multiple_kernels,
+                          Reduction::has_fast_reduce>,
+      AlwaysConsiderStrategy<Strat::basic>>::type;
+  template <typename Reduction>
+  using StratList = std::conditional_t<
+      Reduction::has_float64_atomics, Float64AtomicsStrats<Reduction>,
+      std::conditional_t<Reduction::has_fast_atomics,
+                         FastAtomicsStrats<Reduction>, ElseStrats<Reduction>>>;
+
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
-    auto Delegate = [&](auto Impl) {
-      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties, Redu,
-                                    KernelFunc);
+    auto Delegate = [&](auto Marker) {
+      Impl<decltype(Marker)::strategy>::template run<KernelName>(
+          CGH, Queue, NDRange, Properties, Redu, KernelFunc);
     };
-
-    if constexpr (Reduction::has_float64_atomics) {
-      if (getDeviceFromHandler(CGH).has(aspect::atomic64))
-        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
-
-      if constexpr (Reduction::has_fast_reduce)
-        return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
-      else
-        return Delegate(Impl<Strat::basic>{});
-    } else if constexpr (Reduction::has_fast_atomics) {
-      if constexpr (Reduction::has_fast_reduce) {
-        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
-      } else {
-        return Delegate(Impl<Strat::local_mem_tree_and_atomic_cross_wg>{});
-      }
-    } else {
-      if constexpr (Reduction::has_fast_reduce)
-        return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
-      else
-        return Delegate(Impl<Strat::basic>{});
-    }
-
-    assert(false && "Must be unreachable!");
+    auto Device = getDeviceFromHandler(CGH);
+    StrategyDispatcher<Reduction, StratList<Reduction>>::Dispatch(Device,
+                                                                  Delegate);
   }
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
@@ -2653,6 +2893,17 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
                   RestT... Rest) {
     return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
                                                Rest...);
+  }
+
+  template <typename Reduction>
+  static constexpr bool IsCompileTimeUnupported = false;
+
+  template <typename Reduction>
+  static constexpr bool HasRuntimeRequirement = false;
+
+  template <typename Reduction>
+  static bool CheckRuntimeRequirements(const device &) {
+    return true;
   }
 };
 
@@ -2753,26 +3004,25 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
     auto &Redu = std::get<0>(ReduTuple);
 
-    constexpr auto StrategyToUse = [&]() {
-      if constexpr (Strategy != reduction::strategy::auto_select)
-        return Strategy;
+    using StratList = std::conditional_t<
+        Strategy != reduction::strategy::auto_select, StrategyList<Strategy>,
+        typename MinimalStrategyList<
+            Reduction,
+            ConditionalStrategy<
+                reduction::strategy::group_reduce_and_last_wg_detection,
+                Reduction::has_fast_reduce>,
+            ConditionalStrategy<
+                reduction::strategy::local_atomic_and_atomic_cross_wg,
+                Reduction::has_fast_atomics>,
+            AlwaysConsiderStrategy<reduction::strategy::range_basic>,
+            AlwaysConsiderStrategy<reduction::strategy::basic>>::type>;
 
-      // TODO: Both group_reduce_and_last_wg_detection and range_basic require
-      // memory_order::acq_rel support that isn't guaranteed by the
-      // specification. However, implementing run-time check for that would
-      // result in an extra kernel compilation(s). We probably need to
-      // investigate if the usage of kernel_bundles can mitigate that.
-      // Note: Identityless reductions cannot use group reductions.
-      if constexpr (Reduction::has_fast_reduce && Reduction::has_identity)
-        return reduction::strategy::group_reduce_and_last_wg_detection;
-      else if constexpr (Reduction::has_fast_atomics)
-        return reduction::strategy::local_atomic_and_atomic_cross_wg;
-      else
-        return reduction::strategy::range_basic;
-    }();
-
-    reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
-                                                      Redu, UpdatedKernelFunc);
+    auto Delegate = [&](auto Marker) {
+      reduction_parallel_for<KernelName, decltype(Marker)::strategy>(
+          CGH, NDRange, Properties, Redu, UpdatedKernelFunc);
+    };
+    auto Device = getDeviceFromHandler(CGH);
+    StrategyDispatcher<Reduction, StratList>::Dispatch(Device, Delegate);
   } else {
     return std::apply(
         [&](auto &...Reds) {
