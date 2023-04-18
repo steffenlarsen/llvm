@@ -48,29 +48,6 @@ get_recommended_mem_granularity(const physical_mem &SyclPhysicalMem) {
                                          SyclPhysicalMem.get_context());
 }
 
-__SYCL_EXPORT void *reserve_virtual_mem(const void *Start, size_t NumBytes,
-                                        const context &SyclContext);
-
-inline void *reserve_virtual_mem(size_t NumBytes, const context &SyclContext) {
-  return reserve_virtual_mem(nullptr, NumBytes, SyclContext);
-}
-
-__SYCL_EXPORT void free_virtual_mem(const void *Ptr, size_t NumBytes,
-                                    const context &SyclContext);
-
-__SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
-                                   access_mode Mode,
-                                   const context &SyclContext);
-
-__SYCL_EXPORT void set_inaccessible(const void *Ptr, size_t NumBytes,
-                                    const context &SyclContext);
-
-__SYCL_EXPORT std::optional<access_mode>
-get_access_mode(const void *Ptr, size_t NumBytes, const context &SyclContext);
-
-__SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
-                         const context &SyclContext);
-
 } // Namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // Namespace sycl

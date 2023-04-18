@@ -16,16 +16,6 @@ public:
         MGranularity{
             syclext::get_minimum_mem_granularity(MDevice, MContext)} {};
 
-  ~VirtualVector() {
-    // Free all mapped ranges.
-    for (const VirtualAddressRange &VARange : MVARanges) {
-      syclext::unmap(VARange.Ptr, VARange.Size, MContext);
-      syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
-    }
-    // Physical memory allocations will be freed when the physical_mem objects
-    // die with MPhysicalMems.
-  }
-
   void reserve(size_t NewSize) {
     // If we already have more memory than required, we can return.
     size_t NewByteSize = sizeof(T) * NewSize;
@@ -39,9 +29,9 @@ public:
     size_t AlignedNewVARangeSize = AlignedNewByteSize - MByteSize;
 
     // Try to reserve virtual memory at the end of the existing one.
-    void *CurrentEnd = reinterpret_cast<char *>(MBasePtr) + MByteSize;
-    void *NewVAPtr = syclext::reserve_virtual_mem(
-        CurrentEnd, AlignedNewVARangeSize, MContext);
+    uintptr_t CurrentEnd = MBasePtr.get_start() + MByteSize;
+    syclext::reserved_address NewVAPtr(CurrentEnd, AlignedNewVARangeSize,
+                                       MContext);
 
     // If we failed to get a ptr to the end of the current range, we need to
     // recreate the whole range.
@@ -54,11 +44,11 @@ public:
       NewVAPtr = RecreateAddressRange(AlignedNewByteSize);
     } else {
       // Otherwise we need to register the new range.
-      MVARanges.emplace_back(NewVAPtr, AlignedNewVARangeSize);
+      auto &NewRef = MVARanges.emplace_back(NewVAPtr, AlignedNewVARangeSize);
 
       // If there was no base pointer previously, this is now the new base.
       if (!MBasePtr)
-        MBasePtr = reinterpret_cast<T *>(NewVAPtr);
+        MBasePtr = NewRef;
     }
 
     // Create new physical memory allocation and map the new range to it.
@@ -84,11 +74,10 @@ private:
 
   void *RecreateAddressRange(size_t AlignedNewByteSize) {
     // Reserve the full range.
-    void *NewFullVAPtr =
-        syclext::reserve_virtual_mem(AlignedNewByteSize, MContext);
+    syclext::reserved_address NewFullVA(AlignedNewByteSize, MContext);
 
-    // Unmap the old virtual address in its entirety.
-    syclext::unmap(MBasePtr, MByteSize, MContext);
+    // Clear the ranges. This will unmap them from the physical memory.
+    MVARanges.clear();
 
     // Remap all existing ranges.
     char *NewEnd = reinterpret_cast<char *>(NewFullVAPtr);
@@ -98,35 +87,21 @@ private:
       NewEnd += PhysicalMem.size();
     }
 
-    // Free the old ranges.
-    for (const VirtualAddressRange &VARange : MVARanges)
-      syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
-
     // Insert the newly reserved range to the saved ranges.
-    MVARanges.clear();
-    MVARanges.emplace_back(NewFullVAPtr, AlignedNewByteSize);
-
     // Update the base pointer to point to the new start.
-    MBasePtr = reinterpret_cast<T *>(NewFullVAPtr);
+    MBase = MVARanges.emplace_back(std::move(NewFullVA));
 
     // Return the new end of the mapped ranges.
     return NewEnd;
   }
 
-  struct VirtualAddressRange {
-    VirtualAddressRange(void *Ptr, size_t Size) : Ptr{Ptr}, Size{Size} {}
-
-    void *Ptr;
-    size_t Size;
-  };
-
   sycl::device MDevice;
   sycl::context MContext;
 
-  std::vector<VirtualAddressRange> MVARanges;
+  std::vector<syclext::reserved_address> MVARanges;
   std::vector<syclext::physical_mem> MPhysicalMems;
 
-  T *MBasePtr = nullptr;
+  syclext::reserved_address &MBase;
   size_t MSize = 0;
   size_t MByteSize = 0;
 

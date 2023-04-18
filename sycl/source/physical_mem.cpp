@@ -24,15 +24,6 @@ physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
       SyclDevice, SyclContext, NumBytes);
 }
 
-void physical_mem::map(const void *Ptr, size_t NumBytes, size_t Offset) const {
-  return impl->map(Ptr, NumBytes, Offset);
-}
-
-void physical_mem::map(const void *Ptr, size_t NumBytes, size_t Offset,
-                       access_mode Mode) const {
-  return impl->map(Ptr, NumBytes, Offset, Mode);
-}
-
 context physical_mem::get_context() const { return impl->get_context(); }
 device physical_mem::get_device() const { return impl->get_device(); }
 size_t physical_mem::size() const noexcept { return impl->size(); }

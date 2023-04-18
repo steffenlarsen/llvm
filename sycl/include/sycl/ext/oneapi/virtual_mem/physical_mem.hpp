@@ -45,10 +45,6 @@ public:
   bool operator==(const physical_mem &rhs) const { return impl == rhs.impl; }
   bool operator!=(const physical_mem &rhs) const { return !(*this == rhs); }
 
-  void map(const void *Ptr, size_t NumBytes, size_t Offset) const;
-  void map(const void *Ptr, size_t NumBytes, size_t Offset,
-           access_mode Mode) const;
-
   context get_context() const;
   device get_device() const;
 

@@ -10,7 +10,6 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <sycl/access/access.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
@@ -18,20 +17,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-
-inline RT::PiVirtualAccessFlags
-AccessModeToVirtualAccessFlags(access_mode Mode) {
-  switch (Mode) {
-  case access_mode::read:
-    return PI_VIRTUAL_ACCESS_FLAG_READ_ONLY;
-  case access_mode::read_write:
-    return PI_VIRTUAL_ACCESS_FLAG_RW;
-  default:
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid access mode. Must either be "
-                          "access_mode::read or access_mode::read_write.");
-  }
-}
 
 class physical_mem_impl {
 public:
@@ -49,21 +34,6 @@ public:
     const plugin &Plugin = MContext->getPlugin();
     Plugin.call<PiApiKind::piextPhysicalMemRelease>(MContext->getHandleRef(),
                                                     MPhysicalMem);
-  }
-
-  void map(const void *Ptr, size_t NumBytes, size_t Offset) const {
-    const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextVirtualMemMap>(
-        MContext->getHandleRef(), Ptr, NumBytes, MPhysicalMem, Offset, 0);
-  }
-
-  void map(const void *Ptr, size_t NumBytes, size_t Offset,
-           access_mode Mode) const {
-    RT::PiVirtualAccessFlags AccessFlags = AccessModeToVirtualAccessFlags(Mode);
-    const plugin &Plugin = MContext->getPlugin();
-    Plugin.call<PiApiKind::piextVirtualMemMap>(MContext->getHandleRef(), Ptr,
-                                               NumBytes, MPhysicalMem, Offset,
-                                               AccessFlags);
   }
 
   context get_context() const {
