@@ -25,6 +25,24 @@ std::ostream &operator<<(std::ostream &OS, const std::array<T, N> &Arr) {
   return OS;
 }
 
+template <typename T>
+void CheckFill(queue &Q, T Init, T Expected) {
+  T DataVal = Init;
+  {
+    buffer<T, 1> Buffer(&DataVal, range<1>{1});
+    Q.submit([&](handler &CGH) {
+       accessor<T, 0, access_mode::write> Accessor(Buffer, CGH);
+       CGH.fill(Accessor, Expected);
+     }).wait_and_throw();
+  }
+  if (DataVal != Expected) {
+    std::cout << "Unexpected value " << DataVal
+              << " in 0-dimensional accessor after fill. Expected " << Expected
+              << "." << std::endl;
+    ++NumErrors;
+  }
+}
+
 template <typename T, int Dims>
 void CheckFill(queue &Q, range<Dims> Range, T Init, T Expected) {
   std::vector<T> Data(Range.size(), Init);
@@ -47,6 +65,7 @@ void CheckFill(queue &Q, range<Dims> Range, T Init, T Expected) {
 
 template <typename T>
 void CheckFillDifferentDims(queue &Q, size_t N, T Init, T Expected) {
+  CheckFill<T>(Q, Init, Expected);
   CheckFill<T>(Q, range<1>{N}, Init, Expected);
   CheckFill<T>(Q, range<2>{N, N}, Init, Expected);
   CheckFill<T>(Q, range<3>{N, N, N}, Init, Expected);
