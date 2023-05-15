@@ -20,6 +20,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
+#include <sycl/ext/oneapi/command_properties/properties.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -545,6 +546,75 @@ public:
     auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
     return discard_or_return(Event);
 #endif // __SYCL_USE_FALLBACK_ASSERT
+  }
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param PropList is a compile-time property-list.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return nothing if sycl::ext::oneapi::experimental::eventless is in
+  /// PropList and a SYCL event object, which corresponds to the queue the
+  /// command group is being enqueued on, otherwise.
+  template <typename T, typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   detail::SubmitReturnType<PropertiesT>>
+  submit(
+      T CGF, PropertiesT &Properties _CODELOCPARAM(&CodeLoc)) {
+    if constexpr (Properties.template has_property<
+                      ext::oneapi::experimental::eventless_key>()) {
+#if __SYCL_USE_FALLBACK_ASSERT
+      // We need the events behind the scenes for fallback asserts, so we walk
+      // the usual path and ignore the event.
+      // TODO: Can we force a discard of the event?
+      submit(CGF _CODELOCFW(CodeLoc));
+#else
+      _CODELOCARG(&CodeLoc);
+      detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+      submit_eventless_impl(CGF, CodeLoc);
+#endif // __SYCL_USE_FALLBACK_ASSERT
+    } else {
+      return submit(CGF _CODELOCFW(CodeLoc));
+    }
+  }
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// On a kernel error, this command group function object is then scheduled
+  /// for execution on a secondary queue.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param SecondaryQueue is a fallback SYCL queue.
+  /// \param PropList is a compile-time property-list.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return nothing if sycl::ext::oneapi::experimental::eventless is in
+  /// PropList and a SYCL event object, which corresponds to the queue the
+  /// command group is being enqueued on, otherwise.
+  template <typename T, typename PropertiesT>
+  std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>,
+                   detail::SubmitReturnType<PropertiesT>>
+  submit(
+      T CGF, queue &SecondaryQueue,
+      PropertiesT &Properties _CODELOCPARAM(&CodeLoc)) {
+    if constexpr (Properties.template has_property<
+                      ext::oneapi::experimental::eventless_key>()) {
+#if __SYCL_USE_FALLBACK_ASSERT
+      // We need the events behind the scenes for fallback asserts, so we walk
+      // the usual path and ignore the event.
+      // TODO: Can we force a discard of the event?
+      submit(CGF, SecondaryQueue _CODELOCFW(CodeLoc));
+#else
+      _CODELOCARG(&CodeLoc);
+      detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+      submit_eventless_impl(CGF, SecondaryQueue, CodeLoc);
+#endif // __SYCL_USE_FALLBACK_ASSERT
+    } else {
+      return submit(CGF, SecondaryQueue _CODELOCFW(CodeLoc));
+    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2150,6 +2220,14 @@ private:
                                     queue secondQueue,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
+
+  /// A template-free version of submit without events.
+  void submit_eventless_impl(std::function<void(handler &)> CGH,
+                             const detail::code_location &CodeLoc);
+  /// A template-free version of submit.
+  void submit_eventless_impl(std::function<void(handler &)> CGH,
+                             queue secondQueue,
+                             const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

@@ -163,6 +163,17 @@ event queue::submit_impl_and_postprocess(
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
 }
 
+void queue::submit_eventless_impl(std::function<void(handler &)> CGH,
+                                  const detail::code_location &CodeLoc) {
+  impl->submit_eventless(CGH, impl, CodeLoc);
+}
+
+void queue::submit_eventless_impl(std::function<void(handler &)> CGH,
+                                  queue SecondQueue,
+                                  const detail::code_location &CodeLoc) {
+  impl->submit_eventless(CGH, impl, SecondQueue.impl, CodeLoc);
+}
+
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
   impl->wait(CodeLoc);
 }

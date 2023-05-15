@@ -382,6 +382,40 @@ public:
     return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// On a kernel error, this command group function object is then scheduled
+  /// for execution on a secondary queue.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param SecondQueue is a shared_ptr to the secondary queue.
+  /// \param Loc is the code location of the submit call (default argument)
+  void submit_eventless(const std::function<void(handler &)> &CGF,
+                        const std::shared_ptr<queue_impl> &Self,
+                        const std::shared_ptr<queue_impl> &SecondQueue,
+                        const detail::code_location &Loc) {
+    try {
+      submit_eventless_impl(CGF, Self, Self, SecondQueue, Loc);
+    } catch (...) {
+      return SecondQueue->submit_eventless_impl(CGF, SecondQueue, Self,
+                                                SecondQueue, Loc);
+    }
+  }
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param Loc is the code location of the submit call (default argument)
+  void submit_eventless(const std::function<void(handler &)> &CGF,
+                        const std::shared_ptr<queue_impl> &Self,
+                        const detail::code_location &Loc) {
+    return submit_eventless_impl(CGF, Self, Self, nullptr, Loc);
+  }
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
@@ -736,6 +770,34 @@ protected:
 
     addEvent(Event);
     return Event;
+  }
+
+  /// Performs command group submission to the queue without producing an event.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a pointer to this queue.
+  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
+  ///        same as Self.
+  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
+  ///        same as Self.
+  /// \param Loc is the code location of the submit call (default argument)
+  void submit_eventless_impl(const std::function<void(handler &)> &CGF,
+                             const std::shared_ptr<queue_impl> &Self,
+                             const std::shared_ptr<queue_impl> &PrimaryQueue,
+                             const std::shared_ptr<queue_impl> &SecondaryQueue,
+                             const detail::code_location &Loc) {
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
+    Handler.saveCodeLoc(Loc);
+    CGF(Handler);
+
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    const CG::CGTYPE Type = Handler.getType();
+    event Event = detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
+    finalizeHandler(Handler, Type, Event);
+    addEvent(Event);
   }
 
   // When instrumentation is enabled emits trace event for wait begin and
