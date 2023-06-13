@@ -62,18 +62,15 @@ namespace __sycl_std = __host_std;
   __SYCL_BUILTIN_DEF(TYPE##3)                                                  \
   __SYCL_BUILTIN_DEF(TYPE##4)
 
-#define __SYCL_DEF_BUILTIN_MARRAY(TYPE)                                        \
-  template <size_t NElems> __SYCL_BUILTIN_DEF(marray<TYPE __SYCL_COMMA NElems>)
-
 #define __SYCL_DEF_BUILTIN_CHAR_SCALAR __SYCL_BUILTIN_DEF(char)
 #define __SYCL_DEF_BUILTIN_CHAR_VEC __SYCL_DEF_BUILTIN_VEC(char)
-#define __SYCL_DEF_BUILTIN_CHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(char)
+#define __SYCL_DEF_BUILTIN_CHAR_MARRAY __SYCL_BUILTIN_MARRAY_DEF(char)
 #define __SYCL_DEF_BUILTIN_CHARN                                               \
   __SYCL_DEF_BUILTIN_CHAR_VEC                                                  \
   __SYCL_DEF_BUILTIN_CHAR_MARRAY
 #define __SYCL_DEF_BUILTIN_SCHAR_SCALAR __SYCL_BUILTIN_DEF(signed char)
 #define __SYCL_DEF_BUILTIN_SCHAR_VEC __SYCL_DEF_BUILTIN_VEC(schar)
-#define __SYCL_DEF_BUILTIN_SCHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(signed char)
+#define __SYCL_DEF_BUILTIN_SCHAR_MARRAY __SYCL_BUILTIN_MARRAY_DEF(signed char)
 #define __SYCL_DEF_BUILTIN_SCHARN                                              \
   __SYCL_DEF_BUILTIN_SCHAR_VEC                                                 \
   __SYCL_DEF_BUILTIN_SCHAR_MARRAY
@@ -82,7 +79,7 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_SCHARN
 #define __SYCL_DEF_BUILTIN_UCHAR_SCALAR __SYCL_BUILTIN_DEF(unsigned char)
 #define __SYCL_DEF_BUILTIN_UCHAR_VEC __SYCL_DEF_BUILTIN_VEC(uchar)
-#define __SYCL_DEF_BUILTIN_UCHAR_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned char)
+#define __SYCL_DEF_BUILTIN_UCHAR_MARRAY __SYCL_BUILTIN_MARRAY_DEF(unsigned char)
 #define __SYCL_DEF_BUILTIN_UCHARN                                              \
   __SYCL_DEF_BUILTIN_UCHAR_VEC                                                 \
   __SYCL_DEF_BUILTIN_UCHAR_MARRAY
@@ -98,7 +95,7 @@ namespace __sycl_std = __host_std;
 
 #define __SYCL_DEF_BUILTIN_SHORT_SCALAR __SYCL_BUILTIN_DEF(short)
 #define __SYCL_DEF_BUILTIN_SHORT_VEC __SYCL_DEF_BUILTIN_VEC(short)
-#define __SYCL_DEF_BUILTIN_SHORT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(short)
+#define __SYCL_DEF_BUILTIN_SHORT_MARRAY __SYCL_BUILTIN_MARRAY_DEF(short)
 #define __SYCL_DEF_BUILTIN_SHORTN                                              \
   __SYCL_DEF_BUILTIN_SHORT_VEC                                                 \
   __SYCL_DEF_BUILTIN_SHORT_MARRAY
@@ -108,7 +105,7 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_USHORT_SCALAR __SYCL_BUILTIN_DEF(unsigned short)
 #define __SYCL_DEF_BUILTIN_USHORT_VEC __SYCL_DEF_BUILTIN_VEC(ushort)
 #define __SYCL_DEF_BUILTIN_USHORT_MARRAY                                       \
-  __SYCL_DEF_BUILTIN_MARRAY(unsigned short)
+  __SYCL_BUILTIN_MARRAY_DEF(unsigned short)
 #define __SYCL_DEF_BUILTIN_USHORTN                                             \
   __SYCL_DEF_BUILTIN_USHORT_VEC                                                \
   __SYCL_DEF_BUILTIN_USHORT_MARRAY
@@ -118,7 +115,7 @@ namespace __sycl_std = __host_std;
 
 #define __SYCL_DEF_BUILTIN_INT_SCALAR __SYCL_BUILTIN_DEF(int)
 #define __SYCL_DEF_BUILTIN_INT_VEC __SYCL_DEF_BUILTIN_VEC(int)
-#define __SYCL_DEF_BUILTIN_INT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(int)
+#define __SYCL_DEF_BUILTIN_INT_MARRAY __SYCL_BUILTIN_MARRAY_DEF(int)
 #define __SYCL_DEF_BUILTIN_INTN                                                \
   __SYCL_DEF_BUILTIN_INT_VEC                                                   \
   __SYCL_DEF_BUILTIN_INT_MARRAY
@@ -127,7 +124,7 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_INTN
 #define __SYCL_DEF_BUILTIN_UINT_SCALAR __SYCL_BUILTIN_DEF(unsigned int)
 #define __SYCL_DEF_BUILTIN_UINT_VEC __SYCL_DEF_BUILTIN_VEC(uint)
-#define __SYCL_DEF_BUILTIN_UINT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned int)
+#define __SYCL_DEF_BUILTIN_UINT_MARRAY __SYCL_BUILTIN_MARRAY_DEF(unsigned int)
 #define __SYCL_DEF_BUILTIN_UINTN                                               \
   __SYCL_DEF_BUILTIN_UINT_VEC                                                  \
   __SYCL_DEF_BUILTIN_UINT_MARRAY
@@ -137,7 +134,7 @@ namespace __sycl_std = __host_std;
 
 #define __SYCL_DEF_BUILTIN_LONG_SCALAR __SYCL_BUILTIN_DEF(long)
 #define __SYCL_DEF_BUILTIN_LONG_VEC __SYCL_DEF_BUILTIN_VEC(long)
-#define __SYCL_DEF_BUILTIN_LONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(long)
+#define __SYCL_DEF_BUILTIN_LONG_MARRAY __SYCL_BUILTIN_MARRAY_DEF(long)
 #define __SYCL_DEF_BUILTIN_LONGN                                               \
   __SYCL_DEF_BUILTIN_LONG_VEC                                                  \
   __SYCL_DEF_BUILTIN_LONG_MARRAY
@@ -146,7 +143,7 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_LONGN
 #define __SYCL_DEF_BUILTIN_ULONG_SCALAR __SYCL_BUILTIN_DEF(unsigned long)
 #define __SYCL_DEF_BUILTIN_ULONG_VEC __SYCL_DEF_BUILTIN_VEC(ulong)
-#define __SYCL_DEF_BUILTIN_ULONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(unsigned long)
+#define __SYCL_DEF_BUILTIN_ULONG_MARRAY __SYCL_BUILTIN_MARRAY_DEF(unsigned long)
 #define __SYCL_DEF_BUILTIN_ULONGN                                              \
   __SYCL_DEF_BUILTIN_ULONG_VEC                                                 \
   __SYCL_DEF_BUILTIN_ULONG_MARRAY
@@ -156,7 +153,7 @@ namespace __sycl_std = __host_std;
 
 #define __SYCL_DEF_BUILTIN_LONGLONG_SCALAR __SYCL_BUILTIN_DEF(long long)
 #define __SYCL_DEF_BUILTIN_LONGLONG_VEC __SYCL_DEF_BUILTIN_VEC(longlong)
-#define __SYCL_DEF_BUILTIN_LONGLONG_MARRAY __SYCL_DEF_BUILTIN_MARRAY(long long)
+#define __SYCL_DEF_BUILTIN_LONGLONG_MARRAY __SYCL_BUILTIN_MARRAY_DEF(long long)
 #define __SYCL_DEF_BUILTIN_LONGLONGN                                           \
   __SYCL_DEF_BUILTIN_LONGLONG_VEC                                              \
   __SYCL_DEF_BUILTIN_LONGLONG_MARRAY
@@ -167,7 +164,7 @@ namespace __sycl_std = __host_std;
   __SYCL_BUILTIN_DEF(unsigned long long)
 #define __SYCL_DEF_BUILTIN_ULONGLONG_VEC __SYCL_DEF_BUILTIN_VEC(ulonglong)
 #define __SYCL_DEF_BUILTIN_ULONGLONG_MARRAY                                    \
-  __SYCL_DEF_BUILTIN_MARRAY(unsigned long long)
+  __SYCL_BUILTIN_MARRAY_DEF(unsigned long long)
 #define __SYCL_DEF_BUILTIN_ULONGLONGN                                          \
   __SYCL_DEF_BUILTIN_ULONGLONG_VEC                                             \
   __SYCL_DEF_BUILTIN_ULONGLONG_MARRAY
@@ -258,7 +255,7 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_FLOAT_SCALAR __SYCL_BUILTIN_DEF(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_VEC __SYCL_DEF_BUILTIN_VEC(float)
 #define __SYCL_DEF_BUILTIN_FLOAT_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(float)
-#define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_DEF_BUILTIN_MARRAY(float)
+#define __SYCL_DEF_BUILTIN_FLOAT_MARRAY __SYCL_BUILTIN_MARRAY_DEF(float)
 #define __SYCL_DEF_BUILTIN_FLOATN                                              \
   __SYCL_DEF_BUILTIN_FLOAT_VEC                                                 \
   __SYCL_DEF_BUILTIN_FLOAT_MARRAY
@@ -272,7 +269,7 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_DOUBLE_SCALAR __SYCL_BUILTIN_DEF(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_VEC __SYCL_DEF_BUILTIN_VEC(double)
 #define __SYCL_DEF_BUILTIN_DOUBLE_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(double)
-#define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_DEF_BUILTIN_MARRAY(double)
+#define __SYCL_DEF_BUILTIN_DOUBLE_MARRAY __SYCL_BUILTIN_MARRAY_DEF(double)
 #define __SYCL_DEF_BUILTIN_DOUBLEN                                             \
   __SYCL_DEF_BUILTIN_DOUBLE_VEC                                                \
   __SYCL_DEF_BUILTIN_DOUBLE_MARRAY
@@ -286,7 +283,7 @@ namespace __sycl_std = __host_std;
 #define __SYCL_DEF_BUILTIN_HALF_SCALAR __SYCL_BUILTIN_DEF(half)
 #define __SYCL_DEF_BUILTIN_HALF_VEC __SYCL_DEF_BUILTIN_VEC(half)
 #define __SYCL_DEF_BUILTIN_HALF_GEOVEC __SYCL_DEF_BUILTIN_GEOVEC(half)
-#define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_DEF_BUILTIN_MARRAY(half)
+#define __SYCL_DEF_BUILTIN_HALF_MARRAY __SYCL_BUILTIN_MARRAY_DEF(half)
 #define __SYCL_DEF_BUILTIN_HALFN                                               \
   __SYCL_DEF_BUILTIN_HALF_VEC                                                  \
   __SYCL_DEF_BUILTIN_HALF_MARRAY
@@ -307,6 +304,11 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_DOUBLE_VEC                                                \
   __SYCL_DEF_BUILTIN_HALF_VEC
 
+#define __SYCL_DEF_BUILTIN_MGENFLOAT                                           \
+  __SYCL_DEF_BUILTIN_FLOAT_MARRAY                                              \
+  __SYCL_DEF_BUILTIN_DOUBLE_MARRAY                                             \
+  __SYCL_DEF_BUILTIN_HALF_MARRAY
+
 #define __SYCL_DEF_BUILTIN_GENFLOAT                                            \
   __SYCL_DEF_BUILTIN_GENFLOATF                                                 \
   __SYCL_DEF_BUILTIN_GENFLOATD                                                 \
@@ -316,14 +318,6 @@ namespace __sycl_std = __host_std;
   __SYCL_DEF_BUILTIN_GENGEOFLOATF                                              \
   __SYCL_DEF_BUILTIN_GENGEOFLOATD                                              \
   __SYCL_DEF_BUILTIN_GENGEOFLOATH
-
-// TODO: Replace with overloads.
-#ifdef __FAST_MATH__
-#define __FAST_MATH_SGENFLOAT(T)                                               \
-  (std::is_same_v<T, double> || std::is_same_v<T, half>)
-#else
-#define __FAST_MATH_SGENFLOAT(T) (detail::is_sgenfloat<T>::value)
-#endif
 
 #ifdef __FAST_MATH__
 #define __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT                                  \
@@ -343,195 +337,60 @@ namespace __sycl_std = __host_std;
 
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 
-// TODO: Replace with overloads.
 // These macros for marray math function implementations use vectorizations of
 // size two as a simple general optimization. A more complex implementation
 // using larger vectorizations for large marray sizes is possible; however more
 // testing is required in order to ascertain the performance implications for
 // all backends.
-#define __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                               \
-  marray<T, N> res;                                                            \
-  for (size_t i = 0; i < N / 2; i++) {                                         \
-    vec<T, 2> partial_res =                                                    \
-        __sycl_std::__invoke_##NAME<vec<T, 2>>(detail::to_vec2(x, i * 2));     \
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
-  }                                                                            \
-  if (N % 2) {                                                                 \
-    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1]);                     \
-  }                                                                            \
-  return res;
 
-#define __SYCL_MATH_FUNCTION_OVERLOAD(NAME)                                    \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x) __NOEXC {                                           \
-    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
-  }
-
-__SYCL_MATH_FUNCTION_OVERLOAD(cospi)
-__SYCL_MATH_FUNCTION_OVERLOAD(sinpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(tanpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(sinh)
-__SYCL_MATH_FUNCTION_OVERLOAD(cosh)
-__SYCL_MATH_FUNCTION_OVERLOAD(tanh)
-__SYCL_MATH_FUNCTION_OVERLOAD(asin)
-__SYCL_MATH_FUNCTION_OVERLOAD(acos)
-__SYCL_MATH_FUNCTION_OVERLOAD(atan)
-__SYCL_MATH_FUNCTION_OVERLOAD(asinpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(acospi)
-__SYCL_MATH_FUNCTION_OVERLOAD(atanpi)
-__SYCL_MATH_FUNCTION_OVERLOAD(asinh)
-__SYCL_MATH_FUNCTION_OVERLOAD(acosh)
-__SYCL_MATH_FUNCTION_OVERLOAD(atanh)
-__SYCL_MATH_FUNCTION_OVERLOAD(cbrt)
-__SYCL_MATH_FUNCTION_OVERLOAD(ceil)
-__SYCL_MATH_FUNCTION_OVERLOAD(floor)
-__SYCL_MATH_FUNCTION_OVERLOAD(erfc)
-__SYCL_MATH_FUNCTION_OVERLOAD(erf)
-__SYCL_MATH_FUNCTION_OVERLOAD(expm1)
-__SYCL_MATH_FUNCTION_OVERLOAD(tgamma)
-__SYCL_MATH_FUNCTION_OVERLOAD(lgamma)
-__SYCL_MATH_FUNCTION_OVERLOAD(log1p)
-__SYCL_MATH_FUNCTION_OVERLOAD(logb)
-__SYCL_MATH_FUNCTION_OVERLOAD(rint)
-__SYCL_MATH_FUNCTION_OVERLOAD(round)
-__SYCL_MATH_FUNCTION_OVERLOAD(trunc)
-__SYCL_MATH_FUNCTION_OVERLOAD(fabs)
-
-#undef __SYCL_MATH_FUNCTION_OVERLOAD
-
-// __SYCL_MATH_FUNCTION_OVERLOAD_FM cases are replaced by corresponding native
-// implementations when the -ffast-math flag is used with float.
-#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>                 \
-      NAME(marray<T, N> x) __NOEXC {                                           \
-    __SYCL_MATH_FUNCTION_OVERLOAD_IMPL(NAME)                                   \
-  }
-
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_IMPL
-
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<int, N>>
-    ilogb(marray<T, N> x) __NOEXC {
-  marray<int, N> res;
-  for (size_t i = 0; i < N / 2; i++) {
-    vec<int, 2> partial_res =
-        __sycl_std::__invoke_ilogb<vec<int, 2>>(detail::to_vec2(x, i * 2));
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<int, 2>));
-  }
-  if (N % 2) {
-    res[N - 1] = __sycl_std::__invoke_ilogb<int>(x[N - 1]);
-  }
-  return res;
-}
-
-#define __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                             \
-  marray<T, N> res;                                                            \
-  for (size_t i = 0; i < N / 2; i++) {                                         \
-    auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(                 \
-        detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));                 \
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));                 \
-  }                                                                            \
-  if (N % 2) {                                                                 \
-    res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1]);           \
-  }                                                                            \
-  return res;
-
-#define __SYCL_MATH_FUNCTION_2_OVERLOAD(NAME)                                  \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x, marray<T, N> y) __NOEXC {                           \
-    __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(NAME)                                 \
-  }
-
-__SYCL_MATH_FUNCTION_2_OVERLOAD(atan2)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(atan2pi)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(copysign)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fdim)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmin)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmax)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(fmod)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(hypot)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(maxmag)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(minmag)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(nextafter)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(pow)
-__SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
-
-#undef __SYCL_MATH_FUNCTION_2_OVERLOAD
-
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
-    powr(marray<T, N> x,
-         marray<T, N> y) __NOEXC{__SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)}
-
-#undef __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL
-
-#define __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(NAME)                      \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x, T y) __NOEXC {                                      \
-    marray<T, N> res;                                                          \
-    sycl::vec<T, 2> y_vec{y, y};                                               \
+#define __SYCL_MATH_MARRAY(NAME, TYPE)                                         \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(marray<TYPE, N> x)          \
+      __NOEXC {                                                                \
+    marray<TYPE, N> res;                                                       \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
-          detail::to_vec2(x, i * 2), y_vec);                                   \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
+      vec<TYPE, 2> partial_res = __sycl_std::__invoke_##NAME<vec<TYPE, 2>>(    \
+          detail::to_vec2(x, i * 2));                                          \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
     }                                                                          \
     if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_##NAME<T>(x[N - 1], y_vec[0]);         \
+      res[N - 1] = __sycl_std::__invoke_##NAME<TYPE>(x[N - 1]);                \
     }                                                                          \
     return res;                                                                \
   }
 
-__SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmax)
-    // clang-format off
-__SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmin)
-
-#undef __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD
-
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
-    ldexp(marray<T, N> x, marray<int, N> k) __NOEXC {
-  // clang-format on
-  marray<T, N> res;
-  for (size_t i = 0; i < N; i++) {
-    res[i] = __sycl_std::__invoke_ldexp<T>(x[i], k[i]);
+#define __SYCL_MATH_MARRAY_2(NAME, TYPE)                                       \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(                            \
+      marray<TYPE, N> x, marray<TYPE, N> y) __NOEXC {                          \
+    marray<TYPE, N> res;                                                       \
+    for (size_t i = 0; i < N / 2; i++) {                                       \
+      auto partial_res = __sycl_std::__invoke_##NAME<vec<TYPE, 2>>(            \
+          detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));               \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
+    }                                                                          \
+    if (N % 2) {                                                               \
+      res[N - 1] = __sycl_std::__invoke_##NAME<TYPE>(x[N - 1], y[N - 1]);      \
+    }                                                                          \
+    return res;                                                                \
   }
-  return res;
-}
 
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
-    ldexp(marray<T, N> x, int k) __NOEXC {
-  marray<T, N> res;
-  for (size_t i = 0; i < N; i++) {
-    res[i] = __sycl_std::__invoke_ldexp<T>(x[i], k);
+#define __SYCL_MATH_MARRAY_2_SCALAR_Y(NAME, TYPE)                              \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(marray<TYPE, N> x, TYPE y)  \
+      __NOEXC {                                                                \
+    marray<TYPE, N> res;                                                       \
+    sycl::vec<TYPE, 2> y_vec{y, y};                                            \
+    for (size_t i = 0; i < N / 2; i++) {                                       \
+      auto partial_res = __sycl_std::__invoke_##NAME<vec<TYPE, 2>>(            \
+          detail::to_vec2(x, i * 2), y_vec);                                   \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
+    }                                                                          \
+    if (N % 2) {                                                               \
+      res[N - 1] = __sycl_std::__invoke_##NAME<TYPE>(x[N - 1], y_vec[0]);      \
+    }                                                                          \
+    return res;                                                                \
   }
-  return res;
-}
 
 #define __SYCL_MATH_FUNCTION_2_GENINT_Y_OVERLOAD_IMPL(NAME)                    \
   marray<T, N> res;                                                            \
@@ -578,247 +437,306 @@ inline __SYCL_ALWAYS_INLINE
 
 #undef __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL
 
-#define __SYCL_MATH_FUNCTION_3_OVERLOAD(NAME)                                  \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>           \
-      NAME(marray<T, N> x, marray<T, N> y, marray<T, N> z) __NOEXC {           \
-    marray<T, N> res;                                                          \
+#define __SYCL_MATH_MARRAY_3(NAME, TYPE)                                       \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(                            \
+      marray<TYPE, N> x, marray<TYPE, N> y, marray<TYPE, N> z) __NOEXC {       \
+    marray<TYPE, N> res;                                                       \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_##NAME<vec<T, 2>>(               \
+      auto partial_res = __sycl_std::__invoke_##NAME<vec<TYPE, 2>>(            \
           detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2),                \
           detail::to_vec2(z, i * 2));                                          \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));               \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] =                                                             \
-          __sycl_std::__invoke_##NAME<T>(x[N - 1], y[N - 1], z[N - 1]);        \
+          __sycl_std::__invoke_##NAME<TYPE>(x[N - 1], y[N - 1], z[N - 1]);     \
     }                                                                          \
     return res;                                                                \
   }
 
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
-    __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
-
-#undef __SYCL_MATH_FUNCTION_3_OVERLOAD
+#define __SYCL_MATH_MARRAY_3_SCALAR_Z(NAME, TYPE)                              \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(                            \
+      marray<TYPE, N> x, marray<TYPE, N> y, TYPE z) __NOEXC {                  \
+    return NAME(x, y, marray<TYPE, N>{z});                                     \
+  }
 
 // genfloat acos (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acos(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_acos<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(acos, TYPE)
         __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat acosh (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acosh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_acosh<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(acosh, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat acospi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE acospi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_acospi<TYPE>(x);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(acospi, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat asin (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asin(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_asin<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(asin, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat asinh (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asinh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_asinh<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(asinh, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat asinpi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE asinpi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_asinpi<TYPE>(x);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(asinpi, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat atan (genfloat y_over_x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan(TYPE y_over_x) __NOEXC {                                    \
     return __sycl_std::__invoke_atan<TYPE>(y_over_x);                          \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(atan, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat atan2 (genfloat y, genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan2(TYPE y, TYPE x) __NOEXC {                                  \
     return __sycl_std::__invoke_atan2<TYPE>(y, x);                             \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(atan2, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat atanh (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atanh(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_atanh<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(atanh, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat atanpi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atanpi(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_atanpi<TYPE>(x);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(atanpi, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat atan2pi (genfloat y, genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE atan2pi(TYPE y, TYPE x) __NOEXC {                                \
     return __sycl_std::__invoke_atan2pi<TYPE>(y, x);                           \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(atan2pi, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat cbrt (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cbrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_cbrt<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(cbrt, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat ceil (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE ceil(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_ceil<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(ceil, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat copysign (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE copysign(TYPE y, TYPE x) __NOEXC {                               \
     return __sycl_std::__invoke_copysign<TYPE>(y, x);                          \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(copysign, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat cos (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC { return __sycl_std::__invoke_cos<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(cos, TYPE)
     __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat cosh (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cosh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_cosh<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(cosh, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat cospi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cospi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_cospi<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(cospi, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat erfc (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE erfc(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_erfc<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(erfc, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat erf (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE erf(TYPE x) __NOEXC { return __sycl_std::__invoke_erf<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(erf, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat exp (genfloat x )
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC { return __sycl_std::__invoke_exp<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(exp, TYPE)
     __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat exp2 (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_exp2<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(exp2, TYPE)
     __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat exp10 (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_exp10<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(exp10, TYPE)
     __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat expm1 (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE expm1(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_expm1<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(expm1, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fabs (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fabs(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_fabs<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(fabs, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fdim (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fdim(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fdim<TYPE>(x, y);                              \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(fdim, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat floor (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE floor(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_floor<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(floor, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fma (genfloat a, genfloat b, genfloat c)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fma(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
     return __sycl_std::__invoke_fma<TYPE>(a, b, c);                            \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_3(fma, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fmax (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE fmax(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmax<TYPE>(x, y);                              \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                    \
+  __SYCL_MATH_MARRAY_2(fmax, TYPE)                                             \
+  __SYCL_MATH_MARRAY_2_SCALAR_Y(fmax, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fmax (genfloat x, sgenfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
@@ -833,8 +751,12 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
   inline TYPE fmin(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmin<TYPE>(x, y);                              \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                    \
+  __SYCL_MATH_MARRAY_2(fmin, TYPE)                                             \
+  __SYCL_MATH_MARRAY_2_SCALAR_Y(fmin, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat fmin (genfloat x, sgenfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
@@ -849,8 +771,12 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(mad) __SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
   inline TYPE fmod(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_fmod<TYPE>(x, y);                              \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(fmod, TYPE)
     __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+#undef __SYCL_MATH_COMMON
 
     // svgenfloat fract (svgenfloat x, genfloatptr iptr)
     template <typename T, typename T2>
@@ -875,8 +801,10 @@ frexp(T x, T2 exp) __NOEXC {
   inline TYPE hypot(TYPE x, TYPE y) __NOEXC {                                  \
     return __sycl_std::__invoke_hypot<TYPE>(x, y);                             \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(hypot, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genint ilogb (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
@@ -884,8 +812,24 @@ __SYCL_DEF_BUILTIN_GENFLOAT
     return __sycl_std::__invoke_ilogb<detail::change_base_type_t<TYPE, int>>(  \
         x);                                                                    \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                        \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<int, N> ilogb(marray<TYPE, N> x)          \
+      __NOEXC {                                                                \
+    marray<int, N> res;                                                        \
+    for (size_t i = 0; i < N / 2; i++) {                                       \
+      vec<int, 2> partial_res =                                                \
+          __sycl_std::__invoke_ilogb<vec<int, 2>>(detail::to_vec2(x, i * 2));  \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<int, 2>));             \
+    }                                                                          \
+    if (N % 2) {                                                               \
+      res[N - 1] = __sycl_std::__invoke_ilogb<int>(x[N - 1]);                  \
+    }                                                                          \
+    return res;                                                                \
+  }
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // float ldexp (float x, int k)
 // double ldexp (double x, int k)
@@ -896,6 +840,29 @@ __SYCL_DEF_BUILTIN_GENFLOAT
   }
 __SYCL_DEF_BUILTIN_SGENFLOAT
 #undef __SYCL_BUILTIN_DEF
+
+// mgenfloat ldexp (mgenfloat x, int k)
+// mgenfloat ldexp (mgenfloat x, genint k)
+// TODO: This does not currently cover all genint cases.
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                        \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> ldexp(                           \
+      marray<TYPE, N> x, marray<int, N> k) __NOEXC {                           \
+    marray<TYPE, N> res;                                                       \
+    for (size_t i = 0; i < N; i++)                                             \
+      res[i] = __sycl_std::__invoke_ldexp<TYPE>(x[i], k[i]);                   \
+    return res;                                                                \
+  }                                                                            \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> ldexp(marray<TYPE, N> x, int k)  \
+      __NOEXC {                                                                \
+    marray<TYPE, N> res;                                                       \
+    for (size_t i = 0; i < N; i++)                                             \
+      res[i] = __sycl_std::__invoke_ldexp<TYPE>(x[i], k);                      \
+    return res;                                                                \
+  }
+__SYCL_DEF_BUILTIN_MGENFLOAT
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // vgenfloat ldexp (vgenfloat x, int k)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
@@ -919,8 +886,10 @@ ldexp(T x, T2 k) __NOEXC {
   inline TYPE lgamma(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_lgamma<TYPE>(x);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(lgamma, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat lgamma_r (svgenfloat x, genintptr signp)
 template <typename T, typename T2>
@@ -934,47 +903,84 @@ lgamma_r(T x, T2 signp) __NOEXC {
 // genfloat log (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC { return __sycl_std::__invoke_log<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(log, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat log2 (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_log2<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(log2, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat log10 (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_log10<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(log10, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat log1p (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log1p(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_log1p<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(log1p, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat logb (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE logb(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_logb<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(logb, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat mad (genfloat a, genfloat b, genfloat c)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE mad(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
     return __sycl_std::__invoke_mad<TYPE>(a, b, c);                            \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_3(mad, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+// genfloat mix (genfloat a, genfloat b, genfloat c)
+// genfloath mix (genfloath a, genfloath b, half c)
+// genfloatf mix (genfloatf a, genfloatf b, float c)
+// genfloatd mix (genfloatd a, genfloatd b, double c)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE mix(TYPE a, TYPE b, TYPE c) __NOEXC {                            \
+    return __sycl_std::__invoke_mix<TYPE>(a, b, c);                            \
+  }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                        \
+  __SYCL_MATH_MARRAY_3(mix, TYPE)                                              \
+  __SYCL_MATH_MARRAY_3_SCALAR_Z(mix, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOAT
+#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+// vgenfloatf mix (vgenfloatf x, vgenfloatf y, float a)
+// vgenfloatd mix (vgenfloatd x, vgenfloatd y, double a)
+// vgenfloatd mix (vgenfloath x, vgenfloath y, half a)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE mix(TYPE x, TYPE y, typename TYPE::element_type a) __NOEXC {     \
+    return __sycl_std::__invoke_mix<TYPE>(x, y, TYPE(a));                      \
+  }
+__SYCL_DEF_BUILTIN_VGENFLOAT
 #undef __SYCL_BUILTIN_DEF
 
 // genfloat maxmag (genfloat x, genfloat y)
@@ -982,16 +988,20 @@ __SYCL_DEF_BUILTIN_GENFLOAT
   inline TYPE maxmag(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_maxmag<TYPE>(x, y);                            \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(maxmag, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat minmag (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE minmag(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_minmag<TYPE>(x, y);                            \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(minmag, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat modf (svgenfloat x, genfloatptr iptr)
 template <typename T, typename T2>
@@ -1014,16 +1024,20 @@ detail::nan_return_t<T> nan(T nancode) __NOEXC {
   inline TYPE nextafter(TYPE x, TYPE y) __NOEXC {                              \
     return __sycl_std::__invoke_nextafter<TYPE>(x, y);                         \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(nextafter, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat pow (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE pow(TYPE x, TYPE y) __NOEXC {                                    \
     return __sycl_std::__invoke_pow<TYPE>(x, y);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(pow, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat pown (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -1039,16 +1053,20 @@ pown(T x, T2 y) __NOEXC {
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_powr<TYPE>(x, y);                              \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(powr, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat remainder (genfloat x, genfloat y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE remainder(TYPE x, TYPE y) __NOEXC {                              \
     return __sycl_std::__invoke_remainder<TYPE>(x, y);                         \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY_2(remainder, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat remquo (svgenfloat x, svgenfloat y, genintptr quo)
 template <typename T, typename T2>
@@ -1064,8 +1082,10 @@ remquo(T x, T y, T2 quo) __NOEXC {
   inline TYPE rint(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_rint<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(rint, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat rootn (svgenfloat x, genint y)
 template <typename T, typename T2>
@@ -1081,22 +1101,28 @@ rootn(T x, T2 y) __NOEXC {
   inline TYPE round(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_round<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(round, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat rsqrt (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_rsqrt<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(rsqrt, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat sin (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC { return __sycl_std::__invoke_sin<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(sin, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
@@ -1112,62 +1138,84 @@ sincos(T x, T2 cosval) __NOEXC {
   inline TYPE sinh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_sinh<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(sinh, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat sinpi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sinpi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_sinpi<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(sinpi, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat sqrt (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_sqrt<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(sqrt, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat tan (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC { return __sycl_std::__invoke_tan<TYPE>(x); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(tan, TYPE)
 __SYCL_DEF_BUILTIN_FAST_MATH_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat tanh (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tanh(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_tanh<TYPE>(x);                                 \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(tanh, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat tanpi (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tanpi(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_tanpi<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(tanpi, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat tgamma (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tgamma(TYPE x) __NOEXC {                                         \
     return __sycl_std::__invoke_tgamma<TYPE>(x);                               \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(tgamma, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloat trunc (genfloat x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE trunc(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_trunc<TYPE>(x);                                \
   }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_MARRAY(trunc, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOAT
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+#undef __SYCL_MATH_MARRAY
+#undef __SYCL_MATH_MARRAY_2
+#undef __SYCL_MATH_MARRAY_2_SCALAR_Y
+#undef __SYCL_MATH_MARRAY_3
+#undef __SYCL_MATH_MARRAY_3_SCALAR_Z
 
 // other marray math functions
 
@@ -1317,22 +1365,6 @@ template <typename T>
 std::enable_if_t<detail::is_vgenfloat<T>::value, T>(min)(
     T x, typename T::element_type y) __NOEXC {
   return __sycl_std::__invoke_fmin_common<T>(x, T(y));
-}
-
-// svgenfloat mix (svgenfloat x, svgenfloat y, svgenfloat a)
-template <typename T>
-std::enable_if_t<detail::is_svgenfloat<T>::value, T> mix(T x, T y,
-                                                         T a) __NOEXC {
-  return __sycl_std::__invoke_mix<T>(x, y, a);
-}
-
-// vgenfloatf mix (vgenfloatf x, vgenfloatf y, float a)
-// vgenfloatd mix (vgenfloatd x, vgenfloatd y, double a)
-// vgenfloatd mix (vgenfloath x, vgenfloath y, half a)
-template <typename T>
-std::enable_if_t<detail::is_vgenfloat<T>::value, T>
-mix(T x, T y, typename T::element_type a) __NOEXC {
-  return __sycl_std::__invoke_mix<T>(x, y, T(a));
 }
 
 // svgenfloat radians (svgenfloat degrees)
@@ -2564,212 +2596,181 @@ select(marray<T, N> a, marray<T, N> b, marray<bool, N> c) __NOEXC {
 namespace native {
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 
-#define __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(NAME)                             \
+#define __SYCL_NATIVE_MARRAY(NAME, TYPE)                                       \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(marray<float, N> x)        \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(marray<TYPE, N> x)          \
       __NOEXC {                                                                \
-    marray<float, N> res;                                                      \
+    marray<TYPE, N> res;                                                       \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
+      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<TYPE, 2>>(     \
           detail::to_vec2(x, i * 2));                                          \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
     }                                                                          \
     if (N % 2) {                                                               \
-      res[N - 1] = __sycl_std::__invoke_native_##NAME<float>(x[N - 1]);        \
+      res[N - 1] = __sycl_std::__invoke_native_##NAME<TYPE>(x[N - 1]);         \
     }                                                                          \
     return res;                                                                \
   }
 
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(sin)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(cos)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(tan)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp2)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(exp10)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log2)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(log10)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(sqrt)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(rsqrt)
-__SYCL_NATIVE_MATH_FUNCTION_OVERLOAD(recip)
-
-#undef __SYCL_NATIVE_MATH_FUNCTION_OVERLOAD
-
-#define __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(NAME)                           \
+#define __SYCL_NATIVE_MARRAY_2(NAME, TYPE)                                     \
   template <size_t N>                                                          \
-  inline __SYCL_ALWAYS_INLINE marray<float, N> NAME(                           \
-      marray<float, N> x, marray<float, N> y) __NOEXC {                        \
-    marray<float, N> res;                                                      \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(                            \
+      marray<TYPE, N> x, marray<TYPE, N> y) __NOEXC {                          \
+    marray<TYPE, N> res;                                                       \
     for (size_t i = 0; i < N / 2; i++) {                                       \
-      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<float, 2>>(    \
+      auto partial_res = __sycl_std::__invoke_native_##NAME<vec<TYPE, 2>>(     \
           detail::to_vec2(x, i * 2), detail::to_vec2(y, i * 2));               \
-      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<float, 2>));           \
+      std::memcpy(&res[i * 2], &partial_res, sizeof(vec<TYPE, 2>));            \
     }                                                                          \
     if (N % 2) {                                                               \
       res[N - 1] =                                                             \
-          __sycl_std::__invoke_native_##NAME<float>(x[N - 1], y[N - 1]);       \
+          __sycl_std::__invoke_native_##NAME<TYPE>(x[N - 1], y[N - 1]);        \
     }                                                                          \
     return res;                                                                \
   }
-
-__SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(divide)
-__SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD(powr)
-
-#undef __SYCL_NATIVE_MATH_FUNCTION_2_OVERLOAD
 
 // genfloatf cos (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE cos(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_cos<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(cos, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE divide(TYPE x, TYPE y) __NOEXC {                                 \
     return __sycl_std::__invoke_native_divide<TYPE>(x, y);                     \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY_2(divide, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_exp<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(exp, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp2 (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_exp2<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(exp2, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp10 (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE exp10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_exp10<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(exp10, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_log<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(log, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log2 (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log2(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_log2<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(log2, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log10 (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE log10(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_log10<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(log10, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE powr(TYPE x, TYPE y) __NOEXC {                                   \
     return __sycl_std::__invoke_native_powr<TYPE>(x, y);                       \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY_2(powr, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf recip (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE recip(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_recip<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(recip, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf rsqrt (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE rsqrt(TYPE x) __NOEXC {                                          \
     return __sycl_std::__invoke_native_rsqrt<TYPE>(x);                         \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(rsqrt, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf sin (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sin(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_sin<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(sin, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf sqrt (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE sqrt(TYPE x) __NOEXC {                                           \
     return __sycl_std::__invoke_native_sqrt<TYPE>(x);                          \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(sqrt, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf tan (genfloatf x)
 #define __SYCL_BUILTIN_DEF(TYPE)                                               \
   inline TYPE tan(TYPE x) __NOEXC {                                            \
     return __sycl_std::__invoke_native_tan<TYPE>(x);                           \
   }
-// TODO: Replace with __SYCL_DEF_BUILTIN_GENFLOAT when merged with above
-// definition.
-__SYCL_DEF_BUILTIN_FLOAT_SCALAR
-__SYCL_DEF_BUILTIN_FLOAT_VEC
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_NATIVE_MARRAY(tan, TYPE)
+__SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+#undef __SYCL_NATIVE_MARRAY
+#undef __SYCL_NATIVE_MARRAY_2
 
 } // namespace native
 namespace half_precision {
@@ -2833,6 +2834,7 @@ __SYCL_HALF_PRECISION_MATH_FUNCTION_2_OVERLOAD(powr)
     return __sycl_std::__invoke_half_cos<TYPE>(x);                             \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf divide (genfloatf x, genfloatf y)
@@ -2841,6 +2843,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_divide<TYPE>(x, y);                       \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp (genfloatf x)
@@ -2849,6 +2852,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_exp<TYPE>(x);                             \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp2 (genfloatf x)
@@ -2857,6 +2861,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_exp2<TYPE>(x);                            \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf exp10 (genfloatf x)
@@ -2865,6 +2870,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_exp10<TYPE>(x);                           \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log (genfloatf x)
@@ -2873,6 +2879,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_log<TYPE>(x);                             \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log2 (genfloatf x)
@@ -2881,6 +2888,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_log2<TYPE>(x);                            \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf log10 (genfloatf x)
@@ -2889,6 +2897,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_log10<TYPE>(x);                           \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf powr (genfloatf x, genfloatf y)
@@ -2897,6 +2906,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_powr<TYPE>(x, y);                         \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf recip (genfloatf x)
@@ -2905,6 +2915,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_recip<TYPE>(x);                           \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf rsqrt (genfloatf x)
@@ -2913,6 +2924,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_rsqrt<TYPE>(x);                           \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sin (genfloatf x)
@@ -2921,6 +2933,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_sin<TYPE>(x);                             \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf sqrt (genfloatf x)
@@ -2929,6 +2942,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_sqrt<TYPE>(x);                            \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 // genfloatf tan (genfloatf x)
@@ -2937,6 +2951,7 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
     return __sycl_std::__invoke_half_tan<TYPE>(x);                             \
   }
 __SYCL_DEF_BUILTIN_FLOAT_SCALAR
+__SYCL_DEF_BUILTIN_FLOAT_VEC
 #undef __SYCL_BUILTIN_DEF
 
 } // namespace half_precision
@@ -2944,98 +2959,108 @@ __SYCL_DEF_BUILTIN_FLOAT_SCALAR
 #ifdef __FAST_MATH__
 /* ----------------- -ffast-math functions. ---------------------------------*/
 
-#define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
-  template <typename T, size_t N>                                              \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>                 \
-      NAME(marray<T, N> x) __NOEXC {                                           \
+#define __SYCL_MATH_NATIVE_COMMON(NAME, TYPE)                                  \
+  inline TYPE NAME(TYPE x) __NOEXC { return native::NAME(x); }
+
+#define __SYCL_MATH_NATIVE_MARRAY(NAME, TYPE)                                  \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> NAME(marray<TYPE, N> x)          \
+      __NOEXC {                                                                \
     return native::NAME(x);                                                    \
   }
 
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sin)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(cos)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(tan)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(exp10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log2)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(log10)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(sqrt)
-__SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
-#undef __SYCL_MATH_FUNCTION_OVERLOAD_FM
-
 // genfloatf cos (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE cos(TYPE x) __NOEXC { return native::cos(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(cos, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(cos, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp(TYPE x) __NOEXC { return native::exp(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(exp, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(exp, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp2 (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp2(TYPE x) __NOEXC { return native::exp2(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(exp2, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(exp2, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf exp10 (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE exp10(TYPE x) __NOEXC { return native::exp10(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(exp10, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(exp10, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log(genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log(TYPE x) __NOEXC { return native::log(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(log, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(log, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log2 (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log2(TYPE x) __NOEXC { return native::log2(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(log2, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(log2, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf log10 (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE log10(TYPE x) __NOEXC { return native::log10(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(log10, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(log10, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
-
-// genfloatf powr (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE powr(TYPE x, TYPE y) __NOEXC { return native::powr(x, y); }
-__SYCL_DEF_BUILTIN_GENFLOATF
-#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf rsqrt (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE rsqrt(TYPE x) __NOEXC { return native::rsqrt(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(rsqrt, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(rsqrt, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf sin (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sin(TYPE x) __NOEXC { return native::sin(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(sin, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(sin, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf sqrt (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE sqrt(TYPE x) __NOEXC { return native::sqrt(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(sqrt, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(sqrt, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
 
 // genfloatf tan (genfloatf x)
-#define __SYCL_BUILTIN_DEF(TYPE)                                               \
-  inline TYPE tan(TYPE x) __NOEXC { return native::tan(x); }
+#define __SYCL_BUILTIN_DEF(TYPE) __SYCL_MATH_NATIVE_COMMON(tan, TYPE)
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE) __SYCL_MATH_NATIVE_MARRAY(tan, TYPE)
 __SYCL_DEF_BUILTIN_GENFLOATF
 #undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+// genfloatf powr (genfloatf x, genfloatf y)
+#define __SYCL_BUILTIN_DEF(TYPE)                                               \
+  inline TYPE powr(TYPE x, TYPE y) __NOEXC { return native::powr(x, y); }
+#define __SYCL_BUILTIN_MARRAY_DEF(TYPE)                                        \
+  template <size_t N>                                                          \
+  inline __SYCL_ALWAYS_INLINE marray<TYPE, N> powr(                            \
+      marray<TYPE, N> x, marray<TYPE, N> y) __NOEXC {                          \
+    return native::powr(x, y);                                                 \
+  }
+__SYCL_DEF_BUILTIN_GENFLOATF
+#undef __SYCL_BUILTIN_DEF
+#undef __SYCL_BUILTIN_MARRAY_DEF
+
+#undef __SYCL_MATH_NATIVE_COMMON
+#undef __SYCL_MATH_NATIVE_MARRAY
 
 #endif // __FAST_MATH__
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
