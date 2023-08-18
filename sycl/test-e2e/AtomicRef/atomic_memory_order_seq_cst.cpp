@@ -14,6 +14,10 @@ constexpr size_t N_items = 128;
 size_t CalculateIterations(device &device, size_t iter_cap) {
   uint64_t max_chars_alloc =
       device.get_info<info::device::max_mem_alloc_size>() / sizeof(char);
+  // Intel GPUs do not allow more than 4GB allocations without special flags.
+  // To avoid this issue we limit we put the maximum at 4GB. See
+  // https://github.com/intel/compute-runtime/blob/master/programmers-guide/ALLOCATIONS_GREATER_THAN_4GB.md
+  max_chars_alloc = std::min(max_chars_alloc, uint64_t(4000000000l));
   size_t max_iter =
       (sycl::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
   return sycl::min(max_iter, iter_cap);
