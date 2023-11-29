@@ -1144,9 +1144,6 @@ public:
   using algo::is_known_identity;
   using algo::is_usm;
 
-  // Only scalar and 1D array reductions are supported by SYCL 2020.
-  static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
-
   /// Constructs reduction_impl when no identity is specified. This is only
   /// available when ExplicitIdentity is false.
   template <bool ExplicitIdentityRelay = ExplicitIdentity,
@@ -1154,10 +1151,6 @@ public:
   reduction_impl(RedOutVar Var, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(BOp, InitializeToIdentity, Var) {
-    if constexpr (!is_usm)
-      if (Var.size() != 1)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Reduction variable must be a scalar.");
     if constexpr (!is_known_identity)
       if (InitializeToIdentity)
         throw sycl::exception(make_error_code(errc::invalid),
@@ -1171,12 +1164,7 @@ public:
             typename = std::enable_if_t<ExplicitIdentityRelay>>
   reduction_impl(RedOutVar &Var, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
-      : algo(Identity, BOp, InitializeToIdentity, Var) {
-    if constexpr (!is_usm)
-      if (Var.size() != 1)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Reduction variable must be a scalar.");
-  }
+      : algo(Identity, BOp, InitializeToIdentity, Var) {}
 };
 
 template <class BinaryOp, int Dims, size_t Extent, bool ExplicitIdentity,
@@ -2863,6 +2851,9 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  if (Var.size() != 1)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Reduction variable must be a scalar.");
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, false>(
@@ -2890,6 +2881,9 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  if (Var.size() != 1)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Reduction variable must be a scalar.");
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, true>(
