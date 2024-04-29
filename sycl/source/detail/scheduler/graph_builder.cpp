@@ -408,7 +408,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
       NewCmd =
           new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
                             *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue(),
+                            /*UserEventNeeded=*/true);
     }
   }
   std::vector<Command *> ToCleanUp;
@@ -493,7 +494,8 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue));
+      SrcAllocaCmd->getQueue(), std::move(HostQueue),
+      /*UserEventNeeded=*/false);
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
@@ -946,7 +948,8 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue, CommandBuffer, std::move(Dependencies));
+      std::move(CommandGroup), Queue, /*UserEventNeeded=*/true, CommandBuffer,
+      std::move(Dependencies));
 
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
@@ -1345,7 +1348,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
         CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
+        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue(),
+        /*UserEventNeeded=*/true);
   } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
@@ -1385,7 +1389,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
   cleanUpCmdFusion(Queue.get());
   auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
+  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(
+                                    Queue, /*UserEventNeeded=*/true));
 }
 
 void Scheduler::GraphBuilder::cleanUpCmdFusion(
@@ -1619,8 +1624,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                      }),
       FusedEventDeps.end());
 
-  auto FusedKernelCmd =
-      std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
+  auto FusedKernelCmd = std::make_unique<ExecCGCommand>(
+      std::move(FusedCG), Queue, /*UserEventNeeded=*/true);
 
   // Inherit auxiliary resources from fused command groups
   Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),

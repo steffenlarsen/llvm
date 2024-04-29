@@ -325,7 +325,7 @@ class DispatchHostTask {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
-    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
+    for (const EventImplPtr &Event : MThisCmd->getPreparedDepsEvents()) {
       const PluginPtr &Plugin = Event->getPlugin();
       RequiredEventsPerPlugin[Plugin].push_back(Event);
     }
@@ -354,7 +354,7 @@ class DispatchHostTask {
 
     // Wait for dependency host events.
     // Host events can't throw exceptions so don't try to catch it.
-    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
+    for (const EventImplPtr &Event : MThisCmd->getPreparedHostDepsEvents()) {
       Event->waitInternal();
     }
 
@@ -447,17 +447,17 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
-  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
+  for (const EventImplPtr &HostEvent : getPreparedHostDepsEvents())
     HostEvent->waitInternal();
 }
 
 void Command::waitForEvents(QueueImplPtr Queue,
-                            std::vector<EventImplPtr> &EventImpls,
+                            const std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
       // Host queue can wait for events from different contexts, i.e. it may
-      // contain events with different contexts in its MPreparedDepsEvents.
+      // contain events with different contexts in its prepared dep events.
       // OpenCL 2.1 spec says that clWaitForEvents will return
       // CL_INVALID_CONTEXT if events specified in the list do not belong to
       // the same context. Thus we split all the events into per-context map.
@@ -465,7 +465,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // we will have two different contexts for the same CPU device: C1, C2.
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
-      // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
+      // E2(C1), E3(C2). The command's prepared dep events will contain all
       // three events (E1, E2, E3). Now, if piEventsWait is called for all
       // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
       // these events refer to different contexts.
@@ -505,25 +505,26 @@ void Command::waitForEvents(QueueImplPtr Queue,
   }
 }
 
-/// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
-/// references to event_impl class members because Command
-/// should not outlive the event connected to it.
 Command::Command(
     CommandType Type, QueueImplPtr Queue,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints)
-    : MQueue(std::move(Queue)),
-      MEvent(std::make_shared<detail::event_impl>(MQueue)),
-      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
+    bool UserEventNeeded)
+    : MQueue(std::move(Queue)), MEvent(nullptr), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
-  MEvent->setSubmittedQueue(MWorkerQueue);
-  MEvent->setCommand(this);
-  MEvent->setContextImpl(MQueue->getContextImplPtr());
-  MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  bool EventIsNeeded = UserEventNeeded || !SyncPoints.empty() ||
+                       Queue->isInOrder() || Queue->emulatesOOO();
+  if (EventIsNeeded) {
+    MEvent = std::make_shared<detail::event_impl>(MQueue);
+    MEvent->setWorkerQueue(MWorkerQueue);
+    MEvent->setSubmittedQueue(MWorkerQueue);
+    MEvent->setCommand(this);
+    MEvent->setContextImpl(MQueue->getContextImplPtr());
+    MEvent->setStateIncomplete();
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -721,7 +722,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
-    MPreparedHostDepsEvents.push_back(DepEvent);
+    MEvent->getPreparedHostDepsEvents().push_back(DepEvent);
     return nullptr;
   }
 
@@ -733,7 +734,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
-    MPreparedDepsEvents.push_back(std::move(DepEvent));
+    MEvent->getPreparedDepsEvents().push_back(std::move(DepEvent));
 
   return ConnectionCmd;
 }
@@ -983,7 +984,8 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
                                      AllocaCommandBase *LinkedAllocaCmd,
                                      bool IsConst)
-    : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
+    : Command(Type, Queue),
+      MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
       MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
@@ -1021,11 +1023,11 @@ bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
 bool AllocaCommandBase::readyForCleanup() const { return false; }
 
-AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
-                             bool InitFromUserData,
+AllocaCommand::AllocaCommand(QueueImplPtr Queue,
+                             Requirement Req, bool InitFromUserData,
                              AllocaCommandBase *LinkedAllocaCmd, bool IsConst)
-    : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
-                        LinkedAllocaCmd, IsConst),
+    : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue),
+                        std::move(Req), LinkedAllocaCmd, IsConst),
       MInitFromUserData(InitFromUserData) {
   // Node event must be created before the dependent edge is added to this
   // node, so this call must be before the addDep() call.
@@ -1053,7 +1055,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1150,7 +1152,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -1186,7 +1188,8 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 }
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
+    : Command(CommandType::RELEASE, std::move(Queue)),
+      MAllocaCmd(AllocaCmd) {
   emitInstrumentationDataProxy();
 }
 
@@ -1219,7 +1222,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1342,7 +1345,7 @@ void MapMemObject::emitInstrumentationData() {
 
 pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1428,7 +1431,7 @@ bool UnMapMemObject::producesPiEvent() const {
 
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1538,7 +1541,7 @@ bool MemCpyCommand::producesPiEvent() const {
 
 pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1601,7 +1604,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 
 pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1695,7 +1698,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
 pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
@@ -1727,7 +1730,7 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 
 pi_int32 EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  waitForEvents(MQueue, getPreparedDepsEvents(), MEvent->getHandleRef());
 
   return PI_SUCCESS;
 }
@@ -1818,8 +1821,8 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-    void **DstPtr)
+    QueueImplPtr Queue, Requirement Req,
+    AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
     : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
 
@@ -1925,10 +1928,10 @@ static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    bool UserEventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
-              Dependencies),
+              Dependencies, UserEventNeeded),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
@@ -2736,7 +2739,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   if (!RawEvents.empty()) {
@@ -2891,7 +2894,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -3295,8 +3298,9 @@ bool ExecCGCommand::readyForCleanup() const {
   return Command::readyForCleanup();
 }
 
-KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
-    : Command(Command::CommandType::FUSION, Queue),
+KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue,
+                                         bool UserEventNeeded)
+    : Command(Command::CommandType::FUSION, Queue, UserEventNeeded),
       MStatus(FusionStatus::ACTIVE) {
   emitInstrumentationDataProxy();
 }
@@ -3317,7 +3321,7 @@ bool KernelFusionCommand::producesPiEvent() const { return false; }
 
 pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  waitForEvents(MQueue, getPreparedDepsEvents(), MEvent->getHandleRef());
 
   // We need to release the queue here because KernelFusionCommands are
   // held back by the scheduler thus prevent the deallocation of the queue.
@@ -3433,12 +3437,12 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
         Nodes)
-    : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
-      MNodes(Nodes) {}
+    : Command(CommandType::UPDATE_CMD_BUFFER, Queue),
+      MGraph(Graph), MNodes(Nodes) {}
 
 pi_int32 UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getPreparedDepsEvents();
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 

@@ -377,6 +377,8 @@ public:
 
   bool isInOrder() const { return MIsInorder; }
 
+  bool emulatesOOO() const { return MEmulateOOO; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.

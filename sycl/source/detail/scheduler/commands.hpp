@@ -124,7 +124,8 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue,
           sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {});
+          const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints = {},
+          bool UserEventNeeded = false);
 
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
@@ -257,12 +258,8 @@ protected:
   EventImplPtr MEvent;
   QueueImplPtr MWorkerQueue;
 
-  /// Dependency events prepared for waiting by backend.
-  /// See processDepEvent for details.
-  std::vector<EventImplPtr> &MPreparedDepsEvents;
-  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
-
-  void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
+  void waitForEvents(QueueImplPtr Queue,
+                     const std::vector<EventImplPtr> &RawEvents,
                      sycl::detail::pi::PiEvent &Event);
 
   void waitForPreparedHostEvents() const;
@@ -294,11 +291,15 @@ protected:
 
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
-    return MPreparedHostDepsEvents;
+    assert(MEvent && "getPreparedHostDepsEvents cannot be called on a command "
+                     "without an event.");
+    return MEvent->getPreparedHostDepsEvents();
   }
 
   const std::vector<EventImplPtr> &getPreparedDepsEvents() const {
-    return MPreparedDepsEvents;
+    assert(MEvent && "getPreparedDepsEvents cannot be called on a command "
+                     "without an event.");
+    return MEvent->getPreparedHostDepsEvents();
   }
 
   // XPTI instrumentation. Copy code location details to the internal struct.
@@ -311,8 +312,10 @@ public:
   /// kernel commands are replaced by the fused command without ever being
   /// executed.
   void clearAllDependencies() {
-    MPreparedDepsEvents.clear();
-    MPreparedHostDepsEvents.clear();
+    if (MEvent) {
+      MEvent->getPreparedHostDepsEvents().clear();
+      MEvent->getPreparedHostDepsEvents().clear();
+    }
     MDeps.clear();
   }
 
@@ -457,7 +460,7 @@ private:
 /// Base class for memory allocation commands.
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
+  AllocaCommandBase(CommandType Type, QueueImplPtr Queue,Requirement Req,
                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
@@ -648,6 +651,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      bool UserEventNeeded,
       sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
       const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
 
@@ -686,6 +690,8 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+
+  bool MUserEventNeeded;
 
   friend class Command;
 };
