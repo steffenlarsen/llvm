@@ -408,8 +408,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
       NewCmd =
           new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
                             *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue(),
-                            /*UserEventNeeded=*/true);
+                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
     }
   }
   std::vector<Command *> ToCleanUp;
@@ -494,8 +493,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue),
-      /*UserEventNeeded=*/false);
+      SrcAllocaCmd->getQueue(), std::move(HostQueue));
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
@@ -1389,8 +1387,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
   cleanUpCmdFusion(Queue.get());
   auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(
-                                    Queue, /*UserEventNeeded=*/true));
+  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
 }
 
 void Scheduler::GraphBuilder::cleanUpCmdFusion(

@@ -107,6 +107,7 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MEventDependencies(*this),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -288,6 +289,7 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+        MEventDependencies(*this),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -309,7 +311,7 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false),
+        MHostQueue(false), MEventDependencies(*this),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -720,7 +722,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MExtGraphDeps.LastEventPtr = nullptr;
+    MEventDependencies.getExtGraphDeps().LastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -780,8 +782,7 @@ protected:
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
 
-      auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
+      auto &EventToBuildDeps = MEventDependencies.getCurrentDeps().LastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(EventToBuildDeps);
 
@@ -801,7 +802,7 @@ protected:
       // (blocked), we track them to prevent barrier from being enqueued
       // earlier.
       std::lock_guard<std::mutex> Lock{MMutex};
-      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      auto &Deps = MEventDependencies.getCurrentDeps();
       if (Type == CG::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
@@ -962,7 +963,6 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-  // Access should be guarded with MMutex
   struct DependencyTrackingItems {
     // This event is employed for enhanced dependency tracking with in-order
     // queue
@@ -971,7 +971,38 @@ protected:
     // ordering
     std::vector<EventImplPtr> UnenqueuedCmdEvents;
     EventImplPtr LastBarrier;
-  } MDefaultGraphDeps, MExtGraphDeps;
+  };
+
+  // Access should be guarded with MMutex
+  struct DependencyTracker {
+    DependencyTracker(queue_impl &Owner) : MOwnerRef(Owner) {}
+
+    DependencyTrackingItems &getCurrentDeps() {
+      return MOwnerRef.MGraph.expired() ? getDefaultDeps() : getExtGraphDeps();
+    }
+
+    const DependencyTrackingItems &getCurrentDeps() const {
+      return getCurrentDeps();
+    }
+
+    DependencyTrackingItems &getDefaultDeps() { return MDefaultDeps; }
+    const DependencyTrackingItems &getDefaultDeps() const {
+      return getDefaultDeps();
+    }
+
+    DependencyTrackingItems &getExtGraphDeps() { return MExtGraphDeps; }
+    const DependencyTrackingItems &getExtGraphDeps() const {
+      return getExtGraphDeps();
+    }
+
+  private:
+    // Dependencies from the default dependency-graph.
+    DependencyTrackingItems MDefaultDeps;
+    // Dependencies from the graph extension.
+    DependencyTrackingItems MExtGraphDeps;
+
+    queue_impl &MOwnerRef;
+  } MEventDependencies;
 
   const bool MIsInorder;
 

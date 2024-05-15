@@ -3298,9 +3298,8 @@ bool ExecCGCommand::readyForCleanup() const {
   return Command::readyForCleanup();
 }
 
-KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue,
-                                         bool UserEventNeeded)
-    : Command(Command::CommandType::FUSION, Queue, UserEventNeeded),
+KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
+    : Command(Command::CommandType::FUSION, Queue),
       MStatus(FusionStatus::ACTIVE) {
   emitInstrumentationDataProxy();
 }

@@ -115,8 +115,7 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
     return DepEvents;
 
   QueueLock.lock();
-  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                             : MExtGraphDeps.LastEventPtr;
+  EventImplPtr ExtraEvent = MEventDependencies.getCurrentDeps().LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
 
   if (!ExternalEvent && !ExtraEvent)
@@ -271,11 +270,11 @@ event queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
-  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  if (!MDefaultGraphDeps.LastEventPtr)
-    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
-  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
+  EventImplPtr &CurrentLastEvent =
+      MEventDependencies.getCurrentDeps().LastEventPtr;
+  if (!CurrentLastEvent)
+    CurrentLastEvent = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(CurrentLastEvent);
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -376,8 +375,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
-        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
+        auto &EventToStoreIn = MEventDependencies.getCurrentDeps().LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -581,8 +579,10 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MDefaultGraphDeps.LastEventPtr ||
-           MDefaultGraphDeps.LastEventPtr
+    EventImplPtr CurrentLastEvent =
+        MEventDependencies.getCurrentDeps().LastEventPtr;
+    return !CurrentLastEvent ||
+           CurrentLastEvent
                    ->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
@@ -653,9 +653,9 @@ void queue_impl::revisitUnenqueuedCommandsState(
   // are still recording.
   if (auto Graph = CompletedHostTask->getCommandGraph()) {
     if (Graph == getCommandGraph())
-      tryToCleanup(MExtGraphDeps);
+      tryToCleanup(MEventDependencies.getExtGraphDeps());
   } else
-    tryToCleanup(MDefaultGraphDeps);
+    tryToCleanup(MEventDependencies.getDefaultDeps());
 }
 
 } // namespace detail
