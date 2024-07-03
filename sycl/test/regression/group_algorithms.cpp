@@ -85,29 +85,24 @@ template <typename T, typename GroupT> void Test(GroupT Group) {
     std::ignore = sycl::select_from_group(Group, Val, 0);
   }
 
-  // It is unclear from the specification whether vec and marray are allowed in
-  // reduce and scan. Until that is cleared up we exclude these.
-  // See https://github.com/KhronosGroup/SYCL-Docs/issues/461.
-  if constexpr (std::is_same_v<typename GetElemT<T>::type, T>) {
-    using ElemT = typename GetElemT<T>::type;
+  using ElemT = typename GetElemT<T>::type;
 
-    // sycl::logical_and and sycl::logical_or requires the input type to be the
-    // same as what && and || returns respectively, so we limit the types.
-    if constexpr (std::is_same_v<decltype(Val && Val), T>)
-      TestReduceAndScan<T, sycl::logical_and<T>>(Group);
-    if constexpr (std::is_same_v<decltype(Val || Val), T>)
-      TestReduceAndScan<T, sycl::logical_or<T>>(Group);
+  // sycl::logical_and and sycl::logical_or requires the input type to be the
+  // same as what && and || returns respectively, so we limit the types.
+  if constexpr (std::is_same_v<decltype(Val && Val), T>)
+    TestReduceAndScan<T, sycl::logical_and<T>>(Group);
+  if constexpr (std::is_same_v<decltype(Val || Val), T>)
+    TestReduceAndScan<T, sycl::logical_or<T>>(Group);
 
-    if constexpr (!std::is_same_v<ElemT, bool>) {
-      TestReduceAndScan<T, sycl::plus<T>>(Group);
-      TestReduceAndScan<T, sycl::multiplies<T>>(Group);
-      TestReduceAndScan<T, sycl::minimum<T>>(Group);
-      TestReduceAndScan<T, sycl::maximum<T>>(Group);
-      if constexpr (std::is_integral_v<ElemT>) {
-        TestReduceAndScan<T, sycl::bit_and<T>>(Group);
-        TestReduceAndScan<T, sycl::bit_or<T>>(Group);
-        TestReduceAndScan<T, sycl::bit_xor<T>>(Group);
-      }
+  if constexpr (!std::is_same_v<ElemT, bool>) {
+    TestReduceAndScan<T, sycl::plus<T>>(Group);
+    TestReduceAndScan<T, sycl::multiplies<T>>(Group);
+    TestReduceAndScan<T, sycl::minimum<T>>(Group);
+    TestReduceAndScan<T, sycl::maximum<T>>(Group);
+    if constexpr (std::is_integral_v<ElemT>) {
+      TestReduceAndScan<T, sycl::bit_and<T>>(Group);
+      TestReduceAndScan<T, sycl::bit_or<T>>(Group);
+      TestReduceAndScan<T, sycl::bit_xor<T>>(Group);
     }
   }
 }
