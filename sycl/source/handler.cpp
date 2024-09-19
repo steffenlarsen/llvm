@@ -421,9 +421,10 @@ event handler::finalize() {
       CommandGroup.reset(new detail::CG(detail::CGType::Barrier,
                                         std::move(impl->CGData), MCodeLoc));
     } else {
-      CommandGroup.reset(
-          new detail::CGBarrier(std::move(impl->MEventsWaitWithBarrier),
-                                std::move(impl->CGData), getType(), MCodeLoc));
+      CommandGroup.reset(new detail::CGBarrier(
+          std::move(impl->MEventsWaitWithBarrier), impl->MBarrierLowPowerEvent,
+          std::move(impl->MLowPowerInterruptID), std::move(impl->CGData),
+          getType(), MCodeLoc));
     }
     break;
   }
@@ -2102,6 +2103,12 @@ void handler::saveCodeLoc(detail::code_location CodeLoc) {
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
+}
+
+void handler::setBarrierLowPowerEvent(
+    std::shared_ptr<sycl::detail::interrupt_id_impl> InterruptID) {
+  impl->MBarrierLowPowerEvent = true;
+  impl->MLowPowerInterruptID = InterruptID;
 }
 
 } // namespace _V1

@@ -28,6 +28,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/intel/experimental/low_power_event/properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -3634,6 +3635,41 @@ private:
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
 
+  // Sets flags for indicating that the barrier command should create a
+  // low-power event. The InterruptID is optional and a nullptr indicates that
+  // the low-power event will not have an explicitly associated interrupt.
+  void setBarrierLowPowerEvent(
+      std::shared_ptr<sycl::detail::interrupt_id_impl> InterruptID);
+
+  // Processes properties passed to barrier commands.
+  template <typename PropertiesT>
+  void processBarrierProperties(PropertiesT Props) {
+    if constexpr (Props.template has_property<
+                      sycl::ext::intel::experimental::low_power_event_key>()) {
+      auto LowPowerEventProp = Props.template get_property<
+          sycl::ext::intel::experimental::low_power_event_key>();
+      std::shared_ptr<sycl::detail::interrupt_id_impl> InterruptID = nullptr;
+      if (LowPowerEventProp.value)
+        InterruptID = getSyclObjImpl(*LowPowerEventProp.value);
+      setBarrierLowPowerEvent(InterruptID);
+    }
+  }
+
+  /// Implementation for barriers without events used by enqueue free functions.
+  template <typename PropertiesT>
+  void internal_barrier_impl(PropertiesT Props) {
+      ext_oneapi_barrier();
+    processBarrierProperties(Props);
+  }
+
+  /// Implementation for barriers with events and properties.
+  template <typename PropertiesT>
+  void internal_barrier_impl(const std::vector<event> &WaitList,
+                             PropertiesT Props) {
+    ext_oneapi_barrier(WaitList);
+    processBarrierProperties(Props);
+  }
+
   friend class detail::HandlerAccess;
 
 protected:
@@ -3654,6 +3690,17 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
+  }
+
+  template <typename PropertiesT>
+  static void BarrierImpl(handler &Handler, PropertiesT Props) {
+    Handler.internal_barrier_impl(Props);
+  }
+
+  template <typename PropertiesT>
+  static void BarrierImpl(handler &Handler, const std::vector<event> &WaitList,
+                          PropertiesT Props) {
+    Handler.internal_barrier_impl(WaitList, Props);
   }
 };
 } // namespace detail

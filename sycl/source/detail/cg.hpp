@@ -44,6 +44,7 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
+class interrupt_id_impl;
 
 // The structure represents kernel argument.
 class ArgDesc {
@@ -420,12 +421,18 @@ public:
 class CGBarrier : public CG {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  bool MLowPowerEvent = false;
+  std::shared_ptr<interrupt_id_impl> MLowPowerInterruptID = nullptr;
 
   CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
+            bool LowPowerEvent,
+            std::shared_ptr<interrupt_id_impl> LowPowerInterruptID,
             CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)),
+        MLowPowerEvent(LowPowerEvent),
+        MLowPowerInterruptID(std::move(LowPowerInterruptID)) {}
 };
 
 class CGProfilingTag : public CG {

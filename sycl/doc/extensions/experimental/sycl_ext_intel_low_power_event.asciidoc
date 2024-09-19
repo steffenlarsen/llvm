@@ -1,0 +1,167 @@
+= sycl_ext_intel_low_power_event
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+:common_ref_sem: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_enqueue_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+This extension is currently implemented in {dpcpp} only for all device targets.
+
+== Overview
+
+On some backends, calling `wait()` on a `sycl::event` will synchronize using a
+busy-waiting implementation. Though this comes at a low latency for the
+synchronization of the event, it has the downside of consuming high amounts of
+CPU time for no meaningful work.  This extension introduces a new property for
+`sycl::ext::oneapi::experimental::barrier()` that will produce a "low-power"
+event. These new low-power events will, if possible, yield the thread that the
+`wait()` member function is called on and only wake up occasionally to check if
+the event has finished. This reduces the time the CPU spends checking finish
+condition of the wait, at the cost of latency.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `sycl_ext_intel_low_power_event` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Interrupt identifiers
+
+This extension adds the `interrupt_id` class. This follows the common reference
+semantics, as described in {common_ref_sem}[section 4.5.2.] of the SYCL 2020
+specification and is defined as:
+
+```
+namespace sycl::ext::intel::experimental {
+
+class interrupt_id {
+public:
+  interrupt_id() = delete;
+
+  /* -- common interface members -- */
+};
+
+}
+```
+
+To create an `interrupt_id` object, the user must first create the corresponding
+backend-specific object directly through the corresponding backend and then use
+the following `make_interrupt_id` to create the `interrupt_id` object.
+
+```
+namespace sycl::ext::intel::experimental {
+
+template <backend Backend>
+platform make_interrupt_id(const backend_input_t<Backend, interrupt_id>& backendObject);
+
+}
+```
+
+
+=== Low-power event property
+
+This extension also adds a new property which can be used with the `barrier`
+and `partial_barrier` enqueue free functions from
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions].
+Passing this property to either of these functions will act as a hint to the
+`event` created from the corresponding commands to do low-power synchronization.
+If the backend is able to handle low-power events, calling `event::wait()` or
+`event::wait_and_throw()` will cause the thread to yield and only do occasional
+wake-ups to check the event progress.  The `low_power_event` property takes an
+optional `interrupt_id` argument, indicating an interrupt for the wait.
+
+```
+struct low_power_event {
+  low_power_event(interrupt_id ID);
+  low_power_event();
+
+  const std::optional<interrupt_id> value;
+};
+
+using low_power_event_key = low_power_event;
+
+inline bool operator==(const low_power_event &LHS, const low_power_event &RHS) {
+  return LHS.value == RHS.value;
+}
+inline bool operator!=(const low_power_event &LHS, const low_power_event &RHS) {
+  return !(LHS == RHS);
+}
+```
+
+TODO: Mention the requirement that interrupt_id is managed by the user and
+      that it should not release after .wait on all events created using a
+      barrier with a property using is returns.

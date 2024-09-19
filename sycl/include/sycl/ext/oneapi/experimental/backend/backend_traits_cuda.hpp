@@ -121,6 +121,7 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;
   static constexpr bool MakeImage = false;
+  static constexpr bool MakeInterruptID = false;
 };
 
 } // namespace detail

@@ -3235,6 +3235,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // TODO: Pass low-power event properties here.
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
     if (Event)
@@ -3253,6 +3254,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // TODO: Pass low-power event properties here.
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), UrEvents.size(), &UrEvents[0], Event);
     if (Event)

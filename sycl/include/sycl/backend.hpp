@@ -427,5 +427,18 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
+
+template <backend Backend>
+std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeInterruptID,
+                 sycl::ext::intel::experimental::interrupt_id>
+make_interrupt_id(
+    const typename backend_traits<Backend>::template input_type<
+        sycl::ext::intel::experimental::interrupt_id> &BackendObject) {
+  // TODO: Correctly construct impl.
+  std::ignore = BackendObject;
+  std::shared_ptr<detail::interrupt_id_impl> Impl = nullptr;
+  return detail::createSyclObjFromImpl<
+      sycl::ext::intel::experimental::interrupt_id>(Impl);
+}
 } // namespace _V1
 } // namespace sycl

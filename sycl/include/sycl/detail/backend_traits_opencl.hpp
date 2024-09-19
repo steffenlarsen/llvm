@@ -137,6 +137,7 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeKernel = true;
   static constexpr bool MakeKernelBundle = true;
   static constexpr bool MakeImage = false;
+  static constexpr bool MakeInterruptID = false;
 };
 
 namespace ur {

@@ -30,6 +30,7 @@ template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;
   static constexpr bool MakeImage = false;
+  static constexpr bool MakeInterruptID = false;
 };
 } // namespace detail
 } // namespace _V1
