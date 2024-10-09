@@ -3638,21 +3638,14 @@ private:
   // Sets flags for indicating that the barrier command should create a
   // low-power event. The InterruptID is optional and a nullptr indicates that
   // the low-power event will not have an explicitly associated interrupt.
-  void setBarrierLowPowerEvent(
-      std::shared_ptr<sycl::detail::interrupt_id_impl> InterruptID);
+  void setBarrierLowPowerEvent();
 
   // Processes properties passed to barrier commands.
   template <typename PropertiesT>
   void processBarrierProperties(PropertiesT Props) {
     if constexpr (Props.template has_property<
-                      sycl::ext::intel::experimental::low_power_event_key>()) {
-      auto LowPowerEventProp = Props.template get_property<
-          sycl::ext::intel::experimental::low_power_event_key>();
-      std::shared_ptr<sycl::detail::interrupt_id_impl> InterruptID = nullptr;
-      if (LowPowerEventProp.value)
-        InterruptID = getSyclObjImpl(*LowPowerEventProp.value);
-      setBarrierLowPowerEvent(InterruptID);
-    }
+                      sycl::ext::intel::experimental::low_power_event_key>())
+      setBarrierLowPowerEvent();
   }
 
   /// Implementation for barriers without events used by enqueue free functions.

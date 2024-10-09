@@ -201,9 +201,6 @@ public:
   /// Indicates if the resulting event from a barrier command should be a
   /// low-power event.
   bool MBarrierLowPowerEvent = false;
-  /// Optional interrupt id for low-power events.
-  std::shared_ptr<interrupt_id_impl>
-      MLowPowerInterruptID = nullptr;
 };
 
 } // namespace detail

@@ -67,7 +67,6 @@
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
-#include <sycl/ext/intel/experimental/low_power_event/interrupt_id.hpp>
 #include <sycl/ext/intel/experimental/low_power_event/properties.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>

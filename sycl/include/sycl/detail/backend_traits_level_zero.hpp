@@ -46,11 +46,6 @@ typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 namespace sycl {
 inline namespace _V1 {
-
-namespace ext::intel::experimental {
-class interrupt_id;
-}
-
 namespace detail {
 
 // Forward declarations
@@ -210,18 +205,6 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, kernel> {
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, kernel> {
   using type = ze_kernel_handle_t;
-};
-
-template <>
-struct BackendInput<backend::ext_oneapi_level_zero,
-                    sycl::ext::intel::experimental::interrupt_id> {
-  using type = uint32_t;
-};
-
-template <>
-struct BackendReturn<backend::ext_oneapi_level_zero,
-                     sycl::ext::intel::experimental::interrupt_id> {
-  using type = uint32_t;
 };
 
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {

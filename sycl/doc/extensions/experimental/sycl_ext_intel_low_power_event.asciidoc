@@ -83,7 +83,7 @@ condition of the wait, at the cost of latency.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `sycl_ext_intel_low_power_event` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_LOW_POWER_EVENT` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -99,38 +99,6 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Interrupt identifiers
-
-This extension adds the `interrupt_id` class. This follows the common reference
-semantics, as described in {common_ref_sem}[section 4.5.2.] of the SYCL 2020
-specification and is defined as:
-
-```
-namespace sycl::ext::intel::experimental {
-
-class interrupt_id {
-public:
-  interrupt_id() = delete;
-
-  /* -- common interface members -- */
-};
-
-}
-```
-
-To create an `interrupt_id` object, the user must first create the corresponding
-backend-specific object directly through the corresponding backend and then use
-the following `make_interrupt_id` to create the `interrupt_id` object.
-
-```
-namespace sycl::ext::intel::experimental {
-
-template <backend Backend>
-platform make_interrupt_id(const backend_input_t<Backend, interrupt_id>& backendObject);
-
-}
-```
-
 
 === Low-power event property
 
@@ -141,27 +109,12 @@ Passing this property to either of these functions will act as a hint to the
 `event` created from the corresponding commands to do low-power synchronization.
 If the backend is able to handle low-power events, calling `event::wait()` or
 `event::wait_and_throw()` will cause the thread to yield and only do occasional
-wake-ups to check the event progress.  The `low_power_event` property takes an
-optional `interrupt_id` argument, indicating an interrupt for the wait.
+wake-ups to check the event progress.
 
 ```
 struct low_power_event {
-  low_power_event(interrupt_id ID);
   low_power_event();
-
-  const std::optional<interrupt_id> value;
 };
 
 using low_power_event_key = low_power_event;
-
-inline bool operator==(const low_power_event &LHS, const low_power_event &RHS) {
-  return LHS.value == RHS.value;
-}
-inline bool operator!=(const low_power_event &LHS, const low_power_event &RHS) {
-  return !(LHS == RHS);
-}
 ```
-
-TODO: Mention the requirement that interrupt_id is managed by the user and
-      that it should not release after .wait on all events created using a
-      barrier with a property using is returns.
