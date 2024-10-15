@@ -66,7 +66,7 @@ This extension is currently implemented in {dpcpp} only for all device targets.
 
 == Overview
 
-On some backends, calling `wait()` on a `sycl::event` will synchronize using a
+On some backends, calling `wait()` on a `event` will synchronize using a
 busy-waiting implementation. Though this comes at a low latency for the
 synchronization of the event, it has the downside of consuming high amounts of
 CPU time for no meaningful work.  This extension introduces a new property for
@@ -112,9 +112,41 @@ If the backend is able to handle low-power events, calling `event::wait()` or
 wake-ups to check the event progress.
 
 ```
-struct low_power_event {
-  low_power_event();
+namespace sycl::ext::intel::experimental {
+
+struct low_power_event_key {
+  using value_t = 
+      oneapi::experimental::property_value<low_power_event_key>;
 };
 
-using low_power_event_key = low_power_event;
+inline constexpr low_power_event_key::value_t low_power_event;
+
+} // namespace sycl::ext::intel::experimental
+```
+
+=== New property usage example
+
+As an example of how to use the new `low_power_event` property, see the
+following code:
+
+```
+#include <sycl/sycl.hpp>
+
+namespace oneapiex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+int main() {
+  sycl::queue Q;
+
+  // Submit some work to the queue.
+  oneapiex::submit(Q, [&](sycl::handler &CGH) {...});
+
+  // Submit a barrier with the low-power event property.
+  sycl::event E = oneapiex::submit_with_event(Q, [&](sycl::handler &CGH) {
+    oneapiex::barrier(CGH, oneapiex::properties{intelex::low_power_event});
+  });
+
+  // Waiting for the resulting event will use low-power waiting if possible.
+  E.wait();
+}
 ```

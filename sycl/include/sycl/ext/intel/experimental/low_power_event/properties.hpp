@@ -16,14 +16,13 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
 
-struct low_power_event
-    : sycl::ext::oneapi::experimental::detail::run_time_property_key<
+struct low_power_event_key
+    : sycl::ext::oneapi::experimental::detail::compile_time_property_key<
           sycl::ext::oneapi::experimental::detail::PropKind::LowPowerEvent> {
-  low_power_event() {}
-
+  using value_t = oneapi::experimental::property_value<low_power_event_key>;
 };
 
-using low_power_event_key = low_power_event;
+inline constexpr low_power_event_key::value_t low_power_event;
 
 } // namespace ext::intel::experimental
 } // namespace _V1
