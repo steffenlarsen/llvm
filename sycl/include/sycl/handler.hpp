@@ -3640,29 +3640,6 @@ private:
   // the low-power event will not have an explicitly associated interrupt.
   void setBarrierLowPowerEvent();
 
-  // Processes properties passed to barrier commands.
-  template <typename PropertiesT>
-  void processBarrierProperties(PropertiesT Props) {
-    if constexpr (Props.template has_property<
-                      sycl::ext::intel::experimental::low_power_event_key>())
-      setBarrierLowPowerEvent();
-  }
-
-  /// Implementation for barriers without events used by enqueue free functions.
-  template <typename PropertiesT>
-  void internal_barrier_impl(PropertiesT Props) {
-      ext_oneapi_barrier();
-    processBarrierProperties(Props);
-  }
-
-  /// Implementation for barriers with events and properties.
-  template <typename PropertiesT>
-  void internal_barrier_impl(const std::vector<event> &WaitList,
-                             PropertiesT Props) {
-    ext_oneapi_barrier(WaitList);
-    processBarrierProperties(Props);
-  }
-
   friend class detail::HandlerAccess;
 
 protected:
@@ -3683,17 +3660,6 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
-  }
-
-  template <typename PropertiesT>
-  static void BarrierImpl(handler &Handler, PropertiesT Props) {
-    Handler.internal_barrier_impl(Props);
-  }
-
-  template <typename PropertiesT>
-  static void BarrierImpl(handler &Handler, const std::vector<event> &WaitList,
-                          PropertiesT Props) {
-    Handler.internal_barrier_impl(WaitList, Props);
   }
 };
 } // namespace detail

@@ -217,7 +217,6 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
   static constexpr bool MakeKernel = true;
   static constexpr bool MakeBuffer = true;
   static constexpr bool MakeImage = true;
-  static constexpr bool MakeInterruptID = true;
 };
 
 } // namespace detail
