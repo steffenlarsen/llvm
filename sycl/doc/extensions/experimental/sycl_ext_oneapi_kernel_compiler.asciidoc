@@ -45,6 +45,7 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
+* link:../proposed/sycl_ext_oneapi_syclbin.asciidoc[sycl_ext_oneapi_syclbin]
 
 
 == Status
@@ -288,6 +289,67 @@ source code used to create the kernel bundle being printed to the terminal.
 In situations where this is undesirable, developers must ensure that the
 exception is caught and handled appropriately.
 _{endnote}_]
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>
+kernel_bundle<bundle_state::object> compile(
+    const kernel_bundle<bundle_state::ext_oneapi_source>& source,
+    const std::vector<device>& devs, PropertyListT props={})
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties".
+
+_Effects:_ The source code from `sourceBundle` is translated into one or more
+device images of state `bundle_state::object`, and a new kernel bundle is
+created to contain these device images.
+The new bundle represents all of the kernels in `sourceBundle` that are
+compatible with at least one of the devices in `devs`.
+Any remaining kernels (those that are not compatible with any of the devices in
+`devs`) are not represented in the new kernel bundle.
+
+The new bundle has the same associated context as `sourceBundle`, and the new
+bundle's set of associated devices is `devs` (with duplicate devices removed).
+
+_Returns:_ The newly created kernel bundle, which has `object` state.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` is not contained by the context associated with `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` does not support compilation of kernels in the source language of
+  `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if `props` contains an
+  `options` property that specifies an invalid option.
+
+* An `exception` with the `errc::build` error code if the compilation operation
+  fails.  In this case, the exception `what` string provides a full build log,
+  including descriptions of any errors, warning messages, and other
+  diagnostics.
+  This string is intended for human consumption, and the format may not be
+  stable across implementations of this extension.
+
+[_Note:_ An uncaught `errc::build` exception may result in some or all of the
+source code used to create the kernel bundle being printed to the terminal.
+In situations where this is undesirable, developers must ensure that the
+exception is caught and handled appropriately.
+_{endnote}_]
+
 |====
 
 === New properties
@@ -411,7 +473,14 @@ class kernel_bundle {
   // ...
 
   bool ext_oneapi_has_kernel(const std::string &name);
+  bool ext_oneapi_has_kernel(const std::string &name, const device &dev);
   kernel ext_oneapi_get_kernel(const std::string &name);
+
+  bool ext_oneapi_has_device_global(const std::string& name, const device& dev);
+  void *ext_oneapi_get_device_global_address(const std::string& name,
+                                             const device& dev);
+  size_t ext_oneapi_get_device_global_size(const std::string& name,
+                                           const device& dev);
 };
 
 } // namespace sycl
@@ -431,9 +500,37 @@ bool ext_oneapi_has_kernel(const std::string &name)
 _Constraints:_ This function is not available when `State` is
 `bundle_state::ext_oneapi_source`.
 
-_Returns:_ The value `true` only if the kernel bundle was created from a bundle
-of state `bundle_state::ext_oneapi_source` and if it defines a kernel whose
-name is `name`.
+_Returns:_ The value `true` only if all the following hold:
+
+ * The kernel bundle was created from a bundle of state
+ `bundle_state::ext_oneapi_source` or from a
+ link:../proposed/sycl_ext_oneapi_syclbin.asciidoc[SYCLBIN file];
+ * and the kernel bundle defines a kernel whose name is `name`.
+
+The extension specification for each source language tells how the `name`
+string is correlated to kernels defined in that source language.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+bool ext_oneapi_has_kernel(const std::string &name, const device &dev)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ The value `true` only if all the following hold:
+
+ * The kernel bundle was created from a bundle of state
+ `bundle_state::ext_oneapi_source` or from a
+ link:../proposed/sycl_ext_oneapi_syclbin.asciidoc[SYCLBIN file];
+ * the kernel bundle defines a kernel whose name is `name`;
+ * and the corresponding kernel is compatible with the device `dev`.
+
 The extension specification for each source language tells how the `name`
 string is correlated to kernels defined in that source language.
 
@@ -457,6 +554,76 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if
   `ext_oneapi_has_kernel(name)` returns `false`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+bool ext_oneapi_has_device_global(const std::string& name, const device& dev)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ The value `true` only if all the following hold:
+
+ * The kernel bundle was created from a bundle of state
+ `bundle_state::ext_oneapi_source` or from a
+ link:../proposed/sycl_ext_oneapi_syclbin.asciidoc[SYCLBIN file];
+ * and the kernel bundle defines a kernel whose name is `name`.
+
+The extension specification for each source language tells how the `name`
+string is correlated to kernels defined in that source language.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+void *ext_oneapi_get_device_global_address(const std::string& name,
+                                           const device& dev)
+----
+!====
+
+_Constraints:_ This function is only available when `State` is
+`bundle_state::executable`.
+
+_Returns:_ A pointer to the `device_global` whose name is `name` on device
+`dev`. This pointer can be used in all interfaces that a USM pointer to device
+memory can be used, excluding `sycl::free`. Dereferencing this pointer on host
+will result in undefined behavior.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_device_global(name, dev)` returns `false`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+size_t ext_oneapi_get_device_global_size(const std::string& name,
+                                         const device& dev)
+----
+!====
+
+_Constraints:_ This function is only available when `State` is
+`bundle_state::ext_executable`.
+
+_Returns:_ The size of the `device_global` whose name is `name` on device
+`dev`.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_device_global(name, dev)` returns `false`.
+
 |====
 
 
