@@ -136,7 +136,7 @@ public:
     };
     return (MContext.get_backend() == backend::opencl ||
             MContext.get_backend() == backend::ext_oneapi_level_zero) &&
-           IsJITSPIRVTarget(MBinImage->getRawData().DeviceTargetSpec);
+           IsJITSPIRVTarget(MBinImage->getDeviceTargetSpec());
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {

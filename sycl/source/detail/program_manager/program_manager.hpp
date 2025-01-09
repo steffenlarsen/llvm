@@ -343,6 +343,8 @@ public:
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
+  static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;

@@ -19,7 +19,8 @@
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
-#include <ur_api.h>                     // for ur_native_handle_t
+#include <sycl/sycl_span.hpp>
+#include <ur_api.h> // for ur_native_handle_t
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
@@ -40,6 +41,10 @@
 #include <utility>     // for move
 #include <variant>     // for hash
 #include <vector>      // for vector
+
+#if __has_include(<span>)
+#include <span>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -483,6 +488,26 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
   }
 
+  /////////////////////////
+  // ext_oneapi_get_content
+  /////////////////////////
+  template <bundle_state _State = State>
+  std::enable_if_t<_State == State && _State != bundle_state::ext_oneapi_source,
+                   std::vector<char>>
+  ext_oneapi_get_content();
+
+  template <bundle_state _State = State>
+  std::enable_if_t<_State == State && _State != bundle_state::ext_oneapi_source,
+                   sycl::span<char>>
+  ext_oneapi_get_content_sycl_view();
+
+#if __cpp_lib_span
+  template <bundle_state _State = State>
+  std::enable_if_t<_State == State && _State != bundle_state::ext_oneapi_source,
+                   std::span<char>>
+  ext_oneapi_get_content_view();
+#endif
+
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
@@ -549,6 +574,10 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
+
+__SYCL_EXPORT detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State);
 
 __SYCL_EXPORT const std::vector<device>
 removeDuplicateDevices(const std::vector<device> &Devs);

@@ -103,8 +103,8 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
             [](const RTDeviceBinaryImage *A, const RTDeviceBinaryImage *B) {
               // All entry names are unique among these images, so comparing the
               // first ones is enough.
-              return std::strcmp(A->getRawData().EntriesBegin->name,
-                                 B->getRawData().EntriesBegin->name) < 0;
+              return std::strcmp(A->getEntriesBegin()->name,
+                                 B->getEntriesBegin()->name) < 0;
             });
   return SortedImgs;
 }
@@ -757,7 +757,7 @@ void PersistentDeviceCodeCache::writeSourceItem(
     Size += Img->getSize();
   FileStream.write((char *)&Size, sizeof(Size));
   for (const RTDeviceBinaryImage *Img : SortedImgs)
-    FileStream.write((const char *)Img->getRawData().BinaryStart,
+    FileStream.write((const char *)Img->getBinaryStart(),
                      Img->getSize());
   FileStream.close();
 
@@ -777,8 +777,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
 
   std::string ImgsString;
   for (const RTDeviceBinaryImage *Img : SortedImgs)
-    ImgsString.append((const char *)Img->getRawData().BinaryStart,
-                      Img->getSize());
+    ImgsString.append((const char *)Img->getBinaryStart(), Img->getSize());
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
 
@@ -830,8 +829,8 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
 
   std::string ImgsString;
   for (const RTDeviceBinaryImage *Img : Imgs)
-    if (Img->getRawData().BinaryStart)
-      ImgsString.append((const char *)Img->getRawData().BinaryStart,
+    if (Img->getBinaryStart())
+      ImgsString.append((const char *)Img->getBinaryStart(),
                         Img->getSize());
 
   std::string DeviceString{getDeviceIDString(Device)};

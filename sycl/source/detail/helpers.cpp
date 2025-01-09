@@ -55,7 +55,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
           return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
-                 DI->getRawData().DeviceTargetSpec == TargetSpec;
+                 DI->getDeviceTargetSpec() == TargetSpec;
         });
     if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};

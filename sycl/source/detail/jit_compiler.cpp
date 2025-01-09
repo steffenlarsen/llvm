@@ -657,9 +657,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
           PM.getCachedMaterializedKernel(KernelName, SpecConstBlob))
     return CachedKernel;
 
-  auto &RawDeviceImage = BinImage->getRawData();
-  auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
-                                             RawDeviceImage.BinaryStart);
+  auto DeviceImageSize = static_cast<size_t>(BinImage->getSize());
   // Set 0 as the number of address bits, because the JIT compiler can set this
   // field based on information from LLVM module's data-layout.
   auto BinaryImageFormat = translateBinaryImageFormat(BinImage->getFormat());
@@ -668,7 +666,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
                           "No suitable IR available for materializing");
   }
   ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
-      BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
+      BinaryImageFormat, 0, BinImage->getBinaryStart(), DeviceImageSize};
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   AddToConfigHandle(
@@ -700,6 +698,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
   }
 
+  const auto &RawDeviceImage = BinImage->getRawData();
   auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
   sycl_device_binary_struct MaterializedRawDeviceImage{RawDeviceImage};
   MaterializedRawDeviceImage.BinaryStart =
@@ -866,9 +865,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     }
 
     // TODO: Check for the correct kernel bundle state of the device image?
-    auto &RawDeviceImage = DeviceImage->getRawData();
-    auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
-                                               RawDeviceImage.BinaryStart);
     // Set 0 as the number of address bits, because the JIT compiler can set
     // this field based on information from SPIR-V/LLVM module's data-layout.
     auto BinaryImageFormat =
@@ -878,7 +874,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
     ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
-        BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
+        BinaryImageFormat, 0, DeviceImage->getBinaryStart(),
+        DeviceImage->getSize()};
 
     constexpr auto SYCLTypeToIndices = [](auto Val) -> ::jit_compiler::Indices {
       return {Val.get(0), Val.get(1), Val.get(2)};

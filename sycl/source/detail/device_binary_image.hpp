@@ -139,7 +139,7 @@ public:
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin);
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -154,7 +154,7 @@ public:
     return getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV;
   }
 
-  const sycl_device_binary_struct &getRawData() const { return *get(); }
+  const sycl_device_binary_struct &getRawData() const { return *Bin; }
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
@@ -238,10 +238,27 @@ public:
     return ImageId;
   }
 
-protected:
-  void init(sycl_device_binary Bin);
-  sycl_device_binary get() const { return Bin; }
+  const char *getDeviceTargetSpec() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->DeviceTargetSpec;
+  }
 
+  const unsigned char *getBinaryStart() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->BinaryStart;
+  }
+
+  const unsigned char *getBinaryEnd() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->BinaryEnd;
+  }
+
+  const sycl_offload_entry &getEntriesBegin() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->EntriesBegin;
+  }
+
+protected:
   sycl_device_binary Bin;
 
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;

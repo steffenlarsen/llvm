@@ -14,6 +14,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/syclbin.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -394,6 +395,30 @@ public:
     MKernelNames = std::move(KNames);
     MPrefix = std::move(Pfx);
     MLanguage = Lang;
+  }
+
+  // SYCLBIN constructor
+  kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
+                     const sycl::span<char> &Bytes, bundle_state State)
+      : MContext(Context), MDevices(Devs), MState(State),
+        MSYCLBINBinaries(
+            std::make_shared<SYCLBINBinaries>(Bytes.data(), Bytes.size())) {
+    // Cannot accept states that are later than the requested state.
+    if (MSYCLBINBinaries->getState() > static_cast<uint8_t>(State))
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "kernel_bundle state is not representable by the SYCLBIN file.");
+
+    std::vector<const detail::RTDeviceBinaryImage *> BestImages =
+        MSYCLBINBinaries->getBestCompatibleImages(Devs);
+    MDeviceImages.reserve(BestImages.size());
+    for (const detail::RTDeviceBinaryImage *Image : BestImages)
+      MDeviceImages.emplace_back(std::make_shared<detail::device_image_impl>(
+          Image, Context, Devs, ProgramManager::getBinImageState(Image),
+          /*KernelIDs=*/nullptr, /*URProgram=*/nullptr));
+    ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
+                                                               State);
+    fillUniqueDeviceImages();
   }
 
   std::string trimXsFlags(std::string &str) {
@@ -961,6 +986,9 @@ private:
   std::vector<std::string> MKernelNames;
   std::string MPrefix;
   include_pairs_t MIncludePairs;
+
+  // Extension for SYCLBIN files : Parsed SYCLBIN and device image wrappings.
+  std::shared_ptr<SYCLBINBinaries> MSYCLBINBinaries = nullptr;
 };
 
 } // namespace detail

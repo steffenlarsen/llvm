@@ -160,9 +160,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
-void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
-  // Bin != nullptr is guaranteed here.
-  this->Bin = Bin;
+RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) : Bin{Bin} {
   // If device binary image format wasn't set by its producer, then can't change
   // now, because 'Bin' data is part of the executable image loaded into memory
   // which can't be modified (easily).
@@ -201,18 +199,17 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
-    : RTDeviceBinaryImage() {
-  Data = std::move(DataPtr);
-  Bin = new sycl_device_binary_struct();
+sycl_device_binary
+CreateDefaultDynBinary(const std::unique_ptr<char[]> &DataPtr,
+                       size_t DataSize) {
+  sycl_device_binary Bin = new sycl_device_binary_struct();
   Bin->Version = SYCL_DEVICE_BINARY_VERSION;
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;
   Bin->ManifestEnd = nullptr;
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
+  Bin->BinaryStart = reinterpret_cast<unsigned char *>(DataPtr.get());
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
@@ -224,8 +221,13 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   default:
     Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
   }
-  init(Bin);
+  return Bin;
 }
+
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
+    std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
+    : RTDeviceBinaryImage(CreateDefaultDynBinary(DataPtr, DataSize)),
+      Data{std::move(DataPtr)} {}
 
 DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
@@ -235,18 +237,11 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
-    : RTDeviceBinaryImage() {
-
-  // 'CompressedBin' is part of the executable image loaded into memory
-  // which can't be modified easily. So, we need to make a copy of it.
-  Bin = new sycl_device_binary_struct(*CompressedBin);
-
+    : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {
   // Get the decompressed size of the binary image.
   m_ImageSize = ZSTDCompressor::GetDecompressedSize(
       reinterpret_cast<const char *>(Bin->BinaryStart),
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
-
-  init(Bin);
 }
 
 void CompressedRTDeviceBinaryImage::Decompress() {
