@@ -1198,9 +1198,6 @@ PackageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
 
   std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
       OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
-  auto NewBinaryOrErr = OffloadBinary::create(*Binary);
-  if (!NewBinaryOrErr)
-    return NewBinaryOrErr.takeError();
 
   auto OutFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "syclbin");
@@ -1208,12 +1205,11 @@ PackageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
     return OutFileOrErr.takeError();
 
   Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-      FileOutputBuffer::create(*OutFileOrErr,
-                               (*NewBinaryOrErr)->getImage().size());
+      FileOutputBuffer::create(*OutFileOrErr, Binary->getBufferSize());
   if (!OutputOrErr)
     return OutputOrErr.takeError();
   std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-  llvm::copy((*NewBinaryOrErr)->getImage(), Output->getBufferStart());
+  llvm::copy(Binary->getBuffer(), Output->getBufferStart());
   if (Error E = Output->commit())
     return std::move(E);
 

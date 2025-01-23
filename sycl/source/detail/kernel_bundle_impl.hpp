@@ -401,13 +401,14 @@ public:
   kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
                      const sycl::span<char> &Bytes, bundle_state State)
       : MContext(Context), MDevices(Devs), MState(State),
+        Language(syclex::source_language::sycl),
         MSYCLBINBinaries(
             std::make_shared<SYCLBINBinaries>(Bytes.data(), Bytes.size())) {
     // Cannot accept states that are later than the requested state.
-    if (MSYCLBINBinaries->getState() > static_cast<uint8_t>(State))
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "kernel_bundle state is not representable by the SYCLBIN file.");
+    if (static_cast<bundle_state>(MSYCLBINBinaries->getState()) != State)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "kernel_bundle state is incompatible with the "
+                            "state of the SYCLBIN file.");
 
     std::vector<const detail::RTDeviceBinaryImage *> BestImages =
         MSYCLBINBinaries->getBestCompatibleImages(Devs);
@@ -664,19 +665,22 @@ public:
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    auto it = std::find(MKernelNames.begin(), MKernelNames.end(),
-                        adjust_kernel_name(Name, MLanguage));
+    std::string AdjustedName = adjust_kernel_name(Name, Language);
+    if (MSYCLBINBinaries)
+      return MSYCLBINBinaries->hasKernel(AdjustedName);
+    auto it = std::find(MKernelNames.begin(), MKernelNames.end(), AdjustedName);
     return it != MKernelNames.end();
   }
 
   kernel
   ext_oneapi_get_kernel(const std::string &Name,
                         const std::shared_ptr<kernel_bundle_impl> &Self) {
-    if (MKernelNames.empty())
+    if (MKernelNames.empty() && !MSYCLBINBinaries)
       throw sycl::exception(make_error_code(errc::invalid),
                             "'ext_oneapi_get_kernel' is only available in "
                             "kernel_bundles successfully built from "
-                            "kernel_bundle<bundle_state:ext_oneapi_source>.");
+                            "kernel_bundle<bundle_state:ext_oneapi_source> or "
+                            "from SYCLBIN files.");
 
     std::string AdjustedName = adjust_kernel_name(Name, MLanguage);
     if (!ext_oneapi_has_kernel(Name))
@@ -708,9 +712,28 @@ public:
     }
 
     assert(MDeviceImages.size() > 0);
-    const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
-        detail::getSyclObjImpl(MDeviceImages[0].getMain());
+    const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl = [&]() {
+      // kernel_compiler path
+      if (!MSYCLBINBinaries)
+        return detail::getSyclObjImpl(MDeviceImages[0].getMain());
+
+      // SYCLBIN path
+      for (const device_image_plain &DevImgPlain : MUniqueDeviceImages) {
+        const std::shared_ptr<detail::device_image_impl> &DevImgImpl =
+            detail::getSyclObjImpl(DevImgPlain);
+        const RTDeviceBinaryImage *&DevBinImg = DevImgImpl->get_bin_image_ref();
+        if (std::any_of(DevBinImg->getEntriesBegin(),
+                        DevBinImg->getEntriesEnd(),
+                        [&](const _sycl_offload_entry_struct &Entry) {
+                          return AdjustedName == std::string_view(Entry.name);
+                        }))
+          return DevImgImpl;
+      }
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Kernel was not found in kernel_bundle");
+    }();
     ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
+
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
     ur_kernel_handle_t UrKernel = nullptr;
@@ -923,6 +946,8 @@ public:
   }
 
   bool isInterop() const { return MIsInterop; }
+
+  bool isSYCLBINBased() const { return MSYCLBINBinaries != nullptr; }
 
   bool add_kernel(const kernel_id &KernelID, const device &Dev) {
     // Skip if kernel is already there

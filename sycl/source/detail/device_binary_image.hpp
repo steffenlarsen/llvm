@@ -258,6 +258,11 @@ public:
     return Bin->EntriesBegin;
   }
 
+  const sycl_offload_entry &getEntriesEnd() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->EntriesEnd;
+  }
+
 protected:
   sycl_device_binary Bin;
 

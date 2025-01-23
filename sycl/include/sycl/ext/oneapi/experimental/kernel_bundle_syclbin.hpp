@@ -1,4 +1,4 @@
-//==---- syclbin_kernel_bundle.hpp - SYCLBIN-based kernel_bundle tooling ---==//
+//==---- kernel_bundle_syclbin.hpp - SYCLBIN-based kernel_bundle tooling ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -44,7 +44,7 @@ std::enable_if_t<State != bundle_state::ext_oneapi_source, kernel_bundle<State>>
 get_kernel_bundle(const context &Ctxt, const std::vector<device> &Devs,
                   const std::span<char> &Bytes, PropertyListT Props = {}) {
   return experimental::get_kernel_bundle(
-      Ctxt, Devs, sycl::span<char>(Bytes.begin(), Bytes.end()), Props);
+      Ctxt, Devs, sycl::span<char>(Bytes.data(), Bytes.size()), Props);
 }
 #endif
 
@@ -55,11 +55,9 @@ get_kernel_bundle(const context &Ctxt, const std::vector<device> &Devs,
                   PropertyListT Props = {}) {
   std::vector<char> RawSYCLBINData;
   {
-    std::ifstream FileStream{Filename, std::ios::binary};
-    if (!FileStream.is_open())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Failed to open SYCLBIN file: " +
-                                static_cast<std::string>(Filename));
+    std::ifstream FileStream;
+    FileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    FileStream.open(Filename, std::ios::binary);
     RawSYCLBINData =
         std::vector<char>{std::istreambuf_iterator<char>(FileStream),
                           std::istreambuf_iterator<char>()};

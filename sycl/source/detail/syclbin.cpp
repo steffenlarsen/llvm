@@ -9,22 +9,46 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+#include "llvm/Object/OffloadBinary.h"
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-SYCLBINBinaries::SYCLBINBinaries(SYCLBIN &&SBIN)
-    : ParsedSYCLBIN(std::move(SBIN)) {
-  size_t NumJITBinaries = 0, NumNativeBinaries = 0;
-  for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules) {
-    NumJITBinaries += AM.IRModules.size();
-    NumNativeBinaries += AM.NativeDeviceCodeImages.size();
-  }
-  DeviceBinaries.reserve(NumJITBinaries + NumNativeBinaries);
-  JITDeviceBinaryImages.reserve(NumJITBinaries);
-  NativeDeviceBinaryImages.reserve(NumNativeBinaries);
+static std::unique_ptr<llvm::object::SYCLBIN>
+ReadSYCLBINOrThrow(const char *SYCLBINContent, size_t SYCLBINSize) {
+  std::unique_ptr<llvm::MemoryBuffer> SYCLBINBuff =
+      llvm::MemoryBuffer::getMemBuffer(
+          llvm::StringRef{SYCLBINContent, SYCLBINSize});
+  llvm::MemoryBufferRef SYCLBINBuffRef = *SYCLBINBuff;
 
-  for (SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules) {
+  // The actual SYCLBIN format may be contained inside an offload binary. Try
+  // to parse that and fall back to parsing SYCLBIN directly if it fails.
+  std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
+  if (!llvm::object::OffloadBinary::create(SYCLBINBuffRef)
+          .moveInto(ParsedOffloadBinary))
+    SYCLBINBuffRef = llvm::MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
+
+  std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN = nullptr;
+  if (llvm::Error &&EC =
+          llvm::object::SYCLBIN::read(SYCLBINBuffRef).moveInto(ParsedSYCLBIN)) {
+    llvm::handleAllErrors(
+        std::move(EC), [](const llvm::ErrorInfoBase &EIB) -> llvm::Error {
+          throw sycl::exception(make_error_code(errc::invalid),
+                                "Failed to read SYCLBIN file: " +
+                                    EIB.message());
+        });
+  }
+  return ParsedSYCLBIN;
+}
+
+SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
+    : SYCLBINBinaries(ReadSYCLBINOrThrow(SYCLBINContent, SYCLBINSize)) {}
+
+SYCLBINBinaries::SYCLBINBinaries(std::unique_ptr<llvm::object::SYCLBIN> &&SBIN)
+    : ParsedSYCLBIN(std::move(SBIN)) {
+  for (llvm::object::SYCLBIN::AbstractModule &AM :
+       ParsedSYCLBIN->AbstractModules) {
     // Construct offload entries.
     std::vector<_sycl_offload_entry_struct> &BinaryOffloadEntries =
         convertAbstractModuleEntries(AM);
@@ -33,8 +57,9 @@ SYCLBINBinaries::SYCLBINBinaries(SYCLBIN &&SBIN)
     std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
         convertAbstractModuleProperties(AM);
 
-    for (SYCLBIN::IRModule &IRM : AM.IRModules) {
-      sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
+    for (const llvm::object::SYCLBIN::IRModule &IRM : AM.IRModules) {
+      DeviceBinaries.emplace_back();
+      sycl_device_binary_struct &DeviceBinary = DeviceBinaries.back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
       DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_SPIRV; // TODO: Determine.
@@ -58,9 +83,10 @@ SYCLBINBinaries::SYCLBINBinaries(SYCLBIN &&SBIN)
       JITDeviceBinaryImages.emplace_back(&DeviceBinary);
     }
 
-    for (const SYCLBIN::NativeDeviceCodeImage &NDCI :
+    for (const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI :
          AM.NativeDeviceCodeImages) {
-      sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
+      DeviceBinaries.emplace_back();
+      sycl_device_binary_struct &DeviceBinary = DeviceBinaries.back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
       DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_NATIVE;
@@ -89,52 +115,52 @@ SYCLBINBinaries::SYCLBINBinaries(SYCLBIN &&SBIN)
 
 std::vector<_sycl_offload_entry_struct> &
 SYCLBINBinaries::convertAbstractModuleEntries(
-    const SYCLBIN::AbstractModule &AM) {
+    const llvm::object::SYCLBIN::AbstractModule &AM) {
   std::vector<_sycl_offload_entry_struct> &BinOffloadEntries =
       BinaryOffloadEntries.emplace_back();
-  BinOffloadEntries.reserve(AM.KernelNames.size() + AM.ExportedSymbols.size());
-  auto InsertEntry = [&](const std::string &EntryName) {
+  std::vector<std::string> &StringBuffer = StringsBuffers.emplace_back();
+  BinOffloadEntries.reserve(AM.KernelNames.size());
+  StringBuffer.reserve(AM.KernelNames.size());
+
+  for (const llvm::SmallString<0> &KernelName : AM.KernelNames){
     _sycl_offload_entry_struct &OffloadEntry = BinOffloadEntries.emplace_back();
-    OffloadEntry.name = const_cast<char *>(EntryName.c_str());
+    std::string &Str = StringBuffer.emplace_back(KernelName);
+    OffloadEntry.name = const_cast<char *>(Str.c_str());
     OffloadEntry.addr = nullptr;
     OffloadEntry.size = 0;
     OffloadEntry.flags = 0;
     OffloadEntry.reserved = 0;
-  };
-
-  for (const std::string &KernelName : AM.KernelNames)
-    InsertEntry(KernelName);
-  for (const std::string &ExportedSymbol : AM.ExportedSymbols)
-    InsertEntry(ExportedSymbol);
+  }
 
   return BinOffloadEntries;
 }
 
 std::vector<_sycl_device_binary_property_set_struct> &
-SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
+SYCLBINBinaries::convertAbstractModuleProperties(
+    const llvm::object::SYCLBIN::AbstractModule &AM) {
   std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
       BinaryPropertySets.emplace_back();
-  BinPropertySets.reserve(AM.Properties.size());
-  for (SYCLBIN::PropertySet &PropSet : AM.Properties) {
+  BinPropertySets.reserve(AM.Properties->getPropSets().size());
+  for (auto PropSet : *AM.Properties) {
     // Add a new vector to BinaryProperties and add reserve room for all the
     // properties we are converting.
     std::vector<_sycl_device_binary_property_struct> &PropsList =
         BinaryProperties.emplace_back();
-    PropsList.reserve(PropSet.Properties.size());
+    PropsList.reserve(PropSet.second.size());
 
     // Then convert all properties in the property set.
-    for (SYCLBIN::Property &Prop : PropSet.Properties) {
+    for (auto Prop : PropSet.second) {
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
-      BinProp.Name = const_cast<char *>(Prop.Name.c_str());
-      BinProp.Type = Prop.Type;
-      BinProp.ValAddr = Prop.Data.data();
-      BinProp.ValSize = Prop.Data.size();
+      BinProp.Name = const_cast<char *>(Prop.first.c_str());
+      BinProp.Type = Prop.second.getType();
+      BinProp.ValAddr = const_cast<char *>(Prop.second.data());
+      BinProp.ValSize = Prop.second.size();
     }
 
     // Add a new property set to the list.
     _sycl_device_binary_property_set_struct &BinPropSet =
         BinPropertySets.emplace_back();
-    BinPropSet.Name = const_cast<char *>(PropSet.Name.c_str());
+    BinPropSet.Name = const_cast<char *>(PropSet.first.c_str());
     BinPropSet.PropertiesBegin = PropsList.data();
     BinPropSet.PropertiesEnd = PropsList.data() + PropsList.size();
   }
@@ -144,7 +170,7 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
   auto SelectCompatibleImages =
-      [&](const std::vector<RTDeviceBinaryImage> &Imgs) {
+      [&](const std::list<RTDeviceBinaryImage> &Imgs) {
         std::vector<const RTDeviceBinaryImage *> CompatImgs;
         for (const RTDeviceBinaryImage &Img : Imgs)
           if (doesDevSupportDeviceRequirements(Dev, Img) &&
@@ -154,8 +180,8 @@ SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
       };
 
   // Try with native images first.
-  std::vector<const RTDeviceBinaryImage *>
-      NativeImgs = SelectCompatibleImages(NativeDeviceBinaryImages);
+  std::vector<const RTDeviceBinaryImage *> NativeImgs =
+      SelectCompatibleImages(NativeDeviceBinaryImages);
   if (!NativeImgs.empty())
     return NativeImgs;
 

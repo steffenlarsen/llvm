@@ -11,6 +11,8 @@
 //
 
 #include "detail/syclbin.hpp"
+#include "llvm/Object/OffloadBinary.h"
+#include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/CommandLine.h"
 
 #include <fstream>
@@ -20,14 +22,27 @@
 
 using namespace llvm;
 
-std::string_view StateToString(uint8_t State) {
+std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
   switch (State) {
-  case 0:
+  case llvm::object::SYCLBIN::BundleState::Input:
     return "input";
-  case 1:
+  case llvm::object::SYCLBIN::BundleState::Object:
     return "object";
-  case 2:
+  case llvm::object::SYCLBIN::BundleState::Executable:
     return "executable";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+std::string_view IRTypeToString(llvm::object::SYCLBIN::IRType IRType) {
+  switch (IRType) {
+  case llvm::object::SYCLBIN::IRType::SPIRV:
+    return "SPIRV";
+  case llvm::object::SYCLBIN::IRType::PTX:
+    return "PTX";
+  case llvm::object::SYCLBIN::IRType::AMDGCN:
+    return "AMDGCN";
   default:
     return "UNKNOWN";
   }
@@ -40,53 +55,64 @@ int main(int argc, char **argv, char *env[]) {
   cl::ParseCommandLineOptions(argc, argv);
 
   std::string TargetFilename{TargetSYCLBIN};
-  std::ifstream InputStream(TargetFilename.c_str(), std::ios::binary);
-  std::vector<char> RawSYCLBINData{std::istreambuf_iterator<char>(InputStream),
-                                   std::istreambuf_iterator<char>()};
-  InputStream.close();
 
-  sycl::detail::SYCLBIN ParsedSYCLBIN;
-  try {
-    ParsedSYCLBIN = sycl::detail::ParseSYCLBIN(RawSYCLBINData.data(),
-                                               RawSYCLBINData.size());
-  } catch (sycl::exception &e) {
-    std::cerr << "Failed to parse SYCLBIN file: " << e.what() << std::endl;
+  auto FileMemBufferOrError =
+      llvm::MemoryBuffer::getFileAsStream(TargetFilename);
+  if (!FileMemBufferOrError) {
+    std::cerr << "Failed to open or read file: " << TargetFilename << std::endl;
     return 1;
   }
 
-  std::cout << "Version:                    " << ParsedSYCLBIN.Header.Version
+  std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
+  MemoryBufferRef SYCLBINImageBuffer = [&]() {
+    // If we failed to load as an offload binary, it may still be a SYCLBIN at
+    // an outer level.
+    if (llvm::object::OffloadBinary::create(**FileMemBufferOrError)
+            .moveInto(ParsedOffloadBinary))
+      return MemoryBufferRef(**FileMemBufferOrError);
+    else
+      return MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
+  }();
+
+  std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
+  if (llvm::object::SYCLBIN::read(SYCLBINImageBuffer).moveInto(ParsedSYCLBIN)) {
+    std::cerr << "Failed to parse SYCLBIN file." << std::endl;
+    return 1;
+  }
+
+  std::cout << "Version:                    " << ParsedSYCLBIN->Header.Version
             << "\n";
   std::cout << "State:                      "
-            << StateToString(ParsedSYCLBIN.Header.State) << "\n";
+            << StateToString(ParsedSYCLBIN->Header.State) << "\n";
   std::cout << "Number of Abstract Modules: "
-            << ParsedSYCLBIN.AbstractModules.size() << "\n";
+            << ParsedSYCLBIN->AbstractModules.size() << "\n";
 
-  for (size_t I = 0; I < ParsedSYCLBIN.AbstractModules.size(); ++I) {
-    const sycl::detail::SYCLBIN::AbstractModule &AM =
-        ParsedSYCLBIN.AbstractModules[I];
+  for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
+    const llvm::object::SYCLBIN::AbstractModule &AM =
+        ParsedSYCLBIN->AbstractModules[I];
 
     std::cout << "Abstract Module " << I << ":\n";
 
     // Metadata.
     std::cout << "  Metadata:\n";
     std::cout << "    Kernel names:\n";
-    for (const std::string &KernelName : AM.KernelNames)
-      std::cout << "      " << KernelName << "\n";
+    for (const llvm::SmallString<0> &KernelName : AM.KernelNames)
+      std::cout << "      " << static_cast<std::string>(KernelName) << "\n";
     std::cout << "    Imported symbols:\n";
-    for (const std::string &ImportedSymbol : AM.ImportedSymbols)
-      std::cout << "      " << ImportedSymbol << "\n";
+    for (const llvm::SmallString<0> &ImportedSymbol : AM.ImportedSymbols)
+      std::cout << "      " << static_cast<std::string>(ImportedSymbol) << "\n";
     std::cout << "    Exported symbols:\n";
-    for (const std::string &ExportedSymbol : AM.ExportedSymbols)
-      std::cout << "      " << ExportedSymbol << "\n";
-    std::cout << "    Properties: <Binary blob of " << AM.Properties.size()
-              << " bytes>\n";
+    for (const llvm::SmallString<0> &ExportedSymbol : AM.ExportedSymbols)
+      std::cout << "      " << static_cast<std::string>(ExportedSymbol) << "\n";
+    std::cout << "    Properties: <Binary blob of "
+              << AM.Properties->getPropSets().size() << " bytes>\n";
 
     // IR Modules.
     std::cout << "  Number of IR Modules: " << AM.IRModules.size() << "\n";
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      const sycl::detail::SYCLBIN::IRModule &IRM = AM.IRModules[J];
+      const llvm::object::SYCLBIN::IRModule &IRM = AM.IRModules[J];
       std::cout << "  IR module " << J << ":\n";
-      std::cout << "    IR type: " << IRM.Type << "\n";
+      std::cout << "    IR type: " << IRTypeToString(IRM.Type) << "\n";
       std::cout << "    Raw IR bytes: <Binary blob of " << IRM.RawIRBytes.size()
                 << " bytes>\n";
     }
@@ -95,10 +121,11 @@ int main(int argc, char **argv, char *env[]) {
     std::cout << "  Number of Native Device Code Images: "
               << AM.NativeDeviceCodeImages.size() << "\n";
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const sycl::detail::SYCLBIN::NativeDeviceCodeImage &NDCI =
+      const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI =
           AM.NativeDeviceCodeImages[J];
       std::cout << "  Native device code image " << J << ":\n";
-      std::cout << "    Architecture: " << NDCI.ArchString << "\n";
+      std::cout << "    Architecture: "
+                << static_cast<std::string>(NDCI.ArchString) << "\n";
       std::cout << "    Raw native device code image bytes: <Binary blob of "
                 << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
     }

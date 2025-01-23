@@ -418,6 +418,7 @@ event handler::finalize() {
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!KernelBundleImpPtr->isInterop() &&
+          !KernelBundleImpPtr->isSYCLBINBased() &&
           !impl->isStateExplicitKernelBundle()) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();

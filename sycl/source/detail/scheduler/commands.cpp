@@ -2037,7 +2037,8 @@ void instrumentationAddExtraKernelMetadata(
   // kernels in interop kernel bundles (if any) do not have kernel_id and
   // can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
+      !KernelBundleImplPtr->isSYCLBINBased()) {
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =
@@ -2568,7 +2569,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
-      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
+      !KernelBundleImplPtr->isSYCLBINBased()) {
     kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
         CommandGroup.MKernelName);
 
@@ -2733,7 +2735,8 @@ void enqueueImpKernel(
   // in interop kernel bundles (if any) do not have kernel_id
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
+      !KernelBundleImplPtr->isSYCLBINBased()) {
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =

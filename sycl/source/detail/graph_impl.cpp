@@ -1486,7 +1486,8 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   // in interop kernel bundles (if any) do not have kernel_id
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
+      !KernelBundleImplPtr->isSYCLBINBased()) {
     auto KernelName = ExecCG.MKernelName;
     kernel_id KernelID =
         sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
