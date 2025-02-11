@@ -71,14 +71,17 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    ur_program_handle_t Program,
-                    const SpecConstMapT &SpecConstMap,
-                    const std::vector<unsigned char> &SpecConstsBlob)
+                    ur_program_handle_t Program, SpecConstMapT &&SpecConstMap,
+                    std::vector<unsigned char> &&SpecConstsBlob,
+                    std::vector<unsigned char> &&BinaryStructStorage =
+                        std::vector<unsigned char>{})
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MKernelIDs(std::move(KernelIDs)),
+        MSpecConstsBlob(std::move(SpecConstsBlob)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
-        MSpecConstSymMap(SpecConstMap) {}
+        MSpecConstSymMap(std::move(SpecConstMap)),
+        MBinaryStructStorage(std::move(BinaryStructStorage)) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
@@ -427,6 +430,9 @@ private:
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
   std::map<std::string, std::vector<SpecConstDescT>> MSpecConstSymMap;
+  // Used to store the data detailing intermediately created binaries, such as
+  // the information about linked binaries.
+  std::vector<unsigned char> MBinaryStructStorage;
 };
 
 } // namespace detail

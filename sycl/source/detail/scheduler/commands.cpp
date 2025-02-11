@@ -2032,26 +2032,18 @@ void instrumentationAddExtraKernelMetadata(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the
-  // kernels in interop kernel bundles (if any) do not have kernel_id and
-  // can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
-      !KernelBundleImplPtr->isSYCLBINBased()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+  if (nullptr != SyclKernel) {
+    Program = SyclKernel->getProgramRef();
+    if (!SyclKernel->isCreatedFromSource())
+      EliminatedArgMask = SyclKernel->getKernelArgMask();
+  } else if (KernelBundleImplPtr) {
+    kernel SyclKernel = KernelBundleImplPtr->get_kernel_internal(
+        KernelName, KernelBundleImplPtr);
     std::shared_ptr<kernel_impl> KernelImpl =
         detail::getSyclObjImpl(SyclKernel);
 
     EliminatedArgMask = KernelImpl->getKernelArgMask();
     Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
-  } else if (nullptr != SyclKernel) {
-    Program = SyclKernel->getProgramRef();
-    if (!SyclKernel->isCreatedFromSource())
-      EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else if (Queue) {
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
@@ -2568,22 +2560,17 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   // in interop kernel bundles (if any) do not have kernel_id
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
-  if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
-      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
-      !KernelBundleImplPtr->isSYCLBINBased()) {
-    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
-        CommandGroup.MKernelName);
-
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+  if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
+    UrKernel = Kernel->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
+  } else if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle) {
+    kernel SyclKernel = KernelBundleImplPtr->get_kernel_internal(
+        CommandGroup.MKernelName, KernelBundleImplPtr);
 
     auto SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
-    UrKernel = Kernel->getHandleRef();
-    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
@@ -2730,28 +2717,8 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop() &&
-      !KernelBundleImplPtr->isSYCLBINBased()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-
-    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-
-    Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-
-    Program = DeviceImageImpl->get_ur_program_ref();
-
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    KernelMutex = SyclKernelImpl->getCacheMutex();
-  } else if (nullptr != MSyclKernel) {
+  if (nullptr != MSyclKernel) {
+    // If 
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
@@ -2765,6 +2732,19 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+  } else if (KernelBundleImplPtr) {
+    kernel SyclKernel = KernelBundleImplPtr->get_kernel_internal(
+        KernelName, KernelBundleImplPtr);
+
+    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+
+    Kernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+
+    Program = DeviceImageImpl->get_ur_program_ref();
+
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(

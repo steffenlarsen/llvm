@@ -12,6 +12,7 @@
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/link_graph.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
@@ -59,7 +60,7 @@ class kernel_bundle_impl {
 
   using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
 
-  void common_ctor_checks(bundle_state State) {
+  void common_ctor_checks() const {
     const bool AllDevicesInTheContext =
         checkAllDevicesAreInContext(MDevices, MContext);
     if (MDevices.empty() || !AllDevicesInTheContext)
@@ -68,12 +69,12 @@ class kernel_bundle_impl {
           "Not all devices are associated with the context or "
           "vector of devices is empty");
 
-    if (bundle_state::input == State &&
+    if (bundle_state::input == MState &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_compiler))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_compiler");
 
-    if (bundle_state::object == State &&
+    if (bundle_state::object == MState &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_linker))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_linker");
@@ -83,10 +84,10 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
-        MContext, MDevices, State);
+        MContext, MDevices, MState);
     fillUniqueDeviceImages();
   }
 
@@ -103,10 +104,10 @@ public:
 
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage)
+                     device_image_plain &&DevImage)
       : kernel_bundle_impl(Ctx, Devs) {
     MDeviceImages.emplace_back(DevImage);
-    MUniqueDeviceImages.emplace_back(DevImage);
+    MUniqueDeviceImages.emplace_back(std::move(DevImage));
   }
 
   // Matches sycl::build and sycl::compile
@@ -223,36 +224,50 @@ public:
     // TODO: Unify with c'tor for sycl::compile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
 
-    // The loop below just links each device image separately, not linking any
-    // two device images together. This is correct so long as each device image
-    // has no unresolved symbols. That's the case when device images are created
-    // from generic SYCL APIs. There's no way in generic SYCL to create a kernel
-    // which references an undefined symbol. If we decide in the future to allow
-    // a backend interop API to create a "sycl::kernel_bundle" that references
-    // undefined symbols, then the logic in this loop will need to be changed.
+    // Language defaults to SYCL as compile would only have been allowed for
+    // source languages based on SYCL. If no bundles were from source, this
+    // has no effect.
+    MLanguage = syclex::source_language::sycl;
+
+    std::vector<device_image_plain> AllDevImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-         ObjectBundles) {
+         ObjectBundles)
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :
-           getSyclObjImpl(ObjectBundle)->MDeviceImages) {
+           getSyclObjImpl(ObjectBundle)->MDeviceImages)
+        for (const device_image_plain &DevImg : DeviceImageWithDeps.getAll())
+          AllDevImages.push_back(DevImg);
 
-        // Skip images which are not compatible with devices provided
-        if (std::none_of(MDevices.begin(), MDevices.end(),
-                         [&DeviceImageWithDeps](const device &Dev) {
-                           return getSyclObjImpl(DeviceImageWithDeps.getMain())
-                               ->compatible_with_device(Dev);
-                         }))
-          continue;
-
+    {
+      // Skip images which are not compatible with devices provided
+      //if (std::any_of(
+      //        MDevices.begin(), MDevices.end(),
+      //        [&AllDevImages](const device &Dev) {
+      //          return std::any_of(
+      //              AllDevImages.begin(), AllDevImages.end(),
+      //              [&Dev](const device_image_plain &DevImg) {
+      //                return getSyclObjImpl(DevImg)->compatible_with_device(
+      //                    Dev);
+      //              });
+      //        })) {
         std::vector<device_image_plain> LinkedResults =
-            detail::ProgramManager::getInstance().link(DeviceImageWithDeps,
+            detail::ProgramManager::getInstance().link(AllDevImages,
                                                        MDevices, PropList);
         MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                              LinkedResults.end());
         MUniqueDeviceImages.insert(MUniqueDeviceImages.end(),
                                    LinkedResults.begin(), LinkedResults.end());
-      }
+      //}
     }
+
     removeDuplicateImages();
+
+    const AdapterPtr &Adapter = getSyclObjImpl(MContext)->getAdapter();
+    for (const device_image_plain &DevImg : MUniqueDeviceImages) {
+      // TODO: This should not be needed once the SYC
+      std::vector<std::string> KNames = getKernelNamesFromURProgram(
+          Adapter, getSyclObjImpl(DevImg)->get_ur_program_ref());
+      MKernelNames.insert(MKernelNames.end(), KNames.begin(), KNames.end());
+    }
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
@@ -268,7 +283,7 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, KernelIDs, State);
@@ -279,7 +294,7 @@ public:
                      const DevImgSelectorImpl &Selector, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, Selector, State);
@@ -366,42 +381,52 @@ public:
         MSource(Bytes) {}
 
   // oneapi_ext_kernel_compiler
-  // interop constructor
+  // internal constructors
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage,
+                     device_image_plain &&DevImage,
                      std::vector<std::string> KNames,
                      syclex::source_language Lang)
-      : kernel_bundle_impl(Ctx, Devs, DevImage) {
-    MState = bundle_state::executable;
-    MKernelNames = std::move(KNames);
+      : MContext(Ctx), MDevices(Devs), MState(bundle_state::executable) {
+    common_ctor_checks();
+
+    MKernelNames = KNames;
     MLanguage = Lang;
+    MDeviceImages.emplace_back(DevImage);
+    MUniqueDeviceImages.emplace_back(std::move(DevImage));
   }
 
   // oneapi_ext_kernel_compiler
   // program manager integration, only for sycl_jit language
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     std::vector<std::string> KNames, std::string Pfx,
-                     syclex::source_language Lang)
-      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs,
-                           bundle_state::executable) {
+                     bundle_state State, std::vector<std::string> KNames,
+                     std::string Pfx, syclex::source_language Lang)
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs, State) {
     assert(Lang == syclex::source_language::sycl_jit);
-    // Mark this bundle explicitly as "interop" to ensure that its kernels are
-    // enqueued with the info from the kernel object passed by the application,
-    // cf. `enqueueImpKernel` in `commands.cpp`. While runtime-compiled kernels
-    // loaded via the program manager have `kernel_id`s, they can't be looked up
-    // from the (unprefixed) kernel name.
-    MIsInterop = true;
     MKernelNames = std::move(KNames);
     MPrefix = std::move(Pfx);
     MLanguage = Lang;
+  }
+
+  // oneapi_ext_kernel_compiler
+  // Ctor for source-based images brought to object state through compile().
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     device_image_plain &&DevImage,
+                     syclex::source_language Lang)
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)),
+        MState(bundle_state::object) {
+    common_ctor_checks();
+
+    MLanguage = Lang;
+    MDeviceImages.emplace_back(DevImage);
+    MUniqueDeviceImages.emplace_back(std::move(DevImage));
   }
 
   // SYCLBIN constructor
   kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
                      const sycl::span<char> &Bytes, bundle_state State)
       : MContext(Context), MDevices(Devs), MState(State),
-        Language(syclex::source_language::sycl),
+        MLanguage(syclex::source_language::sycl),
         MSYCLBINBinaries(
             std::make_shared<SYCLBINBinaries>(Bytes.data(), Bytes.size())) {
     // Cannot accept states that are later than the requested state.
@@ -502,12 +527,118 @@ public:
   }
 
   std::shared_ptr<kernel_bundle_impl>
-  build_from_source(const std::vector<device> Devices,
-                    const std::vector<std::string> &BuildOptions,
-                    std::string *LogPtr,
-                    const std::vector<std::string> &RegisteredKernelNames) {
+  createSYCLJITBundle(bundle_state State,
+                      const std::vector<std::string> &Options,
+                      std::string *LogPtr,
+                      const std::vector<std::string> &RegisteredKernelNames) {
+    assert(MLanguage == syclex::source_language::sycl_jit);
+    // Build device images via the program manager.
+    // TODO: Support persistent caching.
+
+    const std::string &SourceStr = std::get<std::string>(MSource);
+    auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
+        SourceStr, MIncludePairs, Options, LogPtr, RegisteredKernelNames);
+
+    auto &PM = detail::ProgramManager::getInstance();
+    PM.addImages(Binaries);
+
+    std::vector<kernel_id> KernelIDs;
+    std::vector<std::string> KernelNames;
+    // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
+    // for offload entry names.
+    std::string Prefix = CompilationID + '$';
+    for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
+      std::string_view KernelName{KernelID.get_name()};
+      if (KernelName.find(Prefix) == 0) {
+        KernelIDs.push_back(KernelID);
+        KernelName.remove_prefix(Prefix.length());
+        KernelNames.emplace_back(KernelName);
+      }
+    }
+
+    return std::make_shared<kernel_bundle_impl>(
+        MContext, MDevices, KernelIDs, State, KernelNames, Prefix, MLanguage);
+  }
+
+  ur_program_handle_t createProgramFromSource(
+      const std::vector<device> Devices,
+      const std::vector<std::string> &Options, std::string *LogPtr,
+      const std::vector<std::string> &RegisteredKernelNames) {
+    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
+        getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    ur_program_handle_t UrProgram = nullptr;
+    const auto spirv = [&]() -> std::vector<uint8_t> {
+      switch (MLanguage) {
+      case syclex::source_language::opencl: {
+        // if successful, the log is empty. if failed, throws an error with
+        // the compilation log.
+        const auto &SourceStr = std::get<std::string>(MSource);
+        std::vector<uint32_t> IPVersionVec(Devices.size());
+        std::transform(Devices.begin(), Devices.end(), IPVersionVec.begin(),
+                       [&](const sycl::device &SyclDev) {
+                         uint32_t ipVersion = 0;
+                         Adapter->call<UrApiKind::urDeviceGetInfo>(
+                             getSyclObjImpl(SyclDev)->getHandleRef(),
+                             UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+                             &ipVersion, nullptr);
+                         return ipVersion;
+                       });
+        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
+                                                Options, LogPtr);
+      }
+      case syclex::source_language::spirv: {
+        const auto &SourceBytes = std::get<std::vector<std::byte>>(MSource);
+        std::vector<uint8_t> Result(SourceBytes.size());
+        std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
+                       [](std::byte B) { return static_cast<uint8_t>(B); });
+        return Result;
+      }
+      case syclex::source_language::sycl: {
+        const auto &SourceStr = std::get<std::string>(MSource);
+        return syclex::detail::SYCL_to_SPIRV(SourceStr, MIncludePairs, Options,
+                                             LogPtr, RegisteredKernelNames);
+      }
+      // SYCL-JIT should be handled through createSYCLJITBundle().
+      case syclex::source_language::sycl_jit:
+      default:
+        break;
+      }
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "SYCL C++, OpenCL C and SPIR-V are the only supported "
+          "languages at this time");
+    }();
+
+    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
+                                                    spirv.data(), spirv.size(),
+                                                    nullptr, &UrProgram);
+    // program created by urProgramCreateWithIL is implicitly retained.
+    if (UrProgram == nullptr)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "urProgramCreateWithIL resulted in a null program handle.");
+    return UrProgram;
+  }
+
+  std::shared_ptr<kernel_bundle_impl>
+  compile_from_source(const std::vector<device> Devices,
+                      const std::vector<std::string> &CompileOptions,
+                      std::string *LogPtr,
+                      const std::vector<std::string> &RegisteredKernelNames) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
+
+    if (MLanguage != syclex::source_language::sycl &&
+        MLanguage != syclex::source_language::sycl_jit)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "compile is only available for kernel_bundle<bundle_state::source> "
+          "when the source language was either sycl or sycl_jit.");
+
+    if (MLanguage == syclex::source_language::sycl_jit)
+      return createSYCLJITBundle(bundle_state::object, CompileOptions, LogPtr,
+                                 RegisteredKernelNames);
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
@@ -520,34 +651,64 @@ public:
       DeviceVec.push_back(Dev);
     }
 
-    if (MLanguage == syclex::source_language::sycl_jit) {
-      // Build device images via the program manager.
-      // TODO: Support persistent caching.
+    ur_program_handle_t UrProgram = createProgramFromSource(
+        Devices, CompileOptions, LogPtr, RegisteredKernelNames);
 
-      const std::string &SourceStr = std::get<std::string>(MSource);
-      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
-          SourceStr, MIncludePairs, BuildOptions, LogPtr,
-          RegisteredKernelNames);
+    // TODO: Extract compilation-related flags.
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramCompileExp>(
+        UrProgram, DeviceVec.size(), DeviceVec.data(), "");
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      Res = Adapter->call_nocheck<UrApiKind::urProgramCompile>(
+          ContextImpl->getHandleRef(), UrProgram, "");
+    Adapter->checkUrResult<errc::build>(Res);
 
-      auto &PM = detail::ProgramManager::getInstance();
-      PM.addImages(Binaries);
+    // make the device image and the kernel_bundle_impl
+    auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
+    auto DevImgImpl = std::make_shared<device_image_impl>(
+        nullptr, MContext, MDevices, bundle_state::object, KernelIDs,
+        UrProgram);
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices,
+                                                device_image_plain{DevImgImpl},
+                                                MKernelNames, MLanguage);
+  }
 
-      std::vector<kernel_id> KernelIDs;
-      std::vector<std::string> KernelNames;
-      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
-      // for offload entry names.
-      std::string Prefix = CompilationID + '$';
-      for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
-        std::string_view KernelName{KernelID.get_name()};
-        if (KernelName.find(Prefix) == 0) {
-          KernelIDs.push_back(KernelID);
-          KernelName.remove_prefix(Prefix.length());
-          KernelNames.emplace_back(KernelName);
-        }
-      }
+  static std::vector<std::string>
+  getKernelNamesFromURProgram(const AdapterPtr &Adapter,
+                              ur_program_handle_t UrProgram) {
+    // Get the kernel names.
+    size_t KernelNamesSize;
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
 
-      return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, Prefix, MLanguage);
+    // semi-colon delimited list of kernel names.
+    std::string KernelNamesStr(KernelNamesSize, ' ');
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+        &KernelNamesStr[0], nullptr);
+    return detail::split_string(KernelNamesStr, ';');
+  }
+
+  std::shared_ptr<kernel_bundle_impl>
+  build_from_source(const std::vector<device> Devices,
+                    const std::vector<std::string> &BuildOptions,
+                    std::string *LogPtr,
+                    const std::vector<std::string> &RegisteredKernelNames) {
+    assert(MState == bundle_state::ext_oneapi_source &&
+           "bundle_state::ext_oneapi_source required");
+
+    if (MLanguage == syclex::source_language::sycl_jit)
+      return createSYCLJITBundle(bundle_state::executable, BuildOptions, LogPtr,
+                                 RegisteredKernelNames);
+
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+
+    std::vector<ur_device_handle_t> DeviceVec;
+    DeviceVec.reserve(Devices.size());
+    for (const auto &SyclDev : Devices) {
+      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      DeviceVec.push_back(Dev);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -559,52 +720,9 @@ public:
           Devices, BuildOptions, *SourceStrPtr, UrProgram);
     }
 
-    if (!FetchedFromCache) {
-      const auto spirv = [&]() -> std::vector<uint8_t> {
-        if (MLanguage == syclex::source_language::opencl) {
-          // if successful, the log is empty. if failed, throws an error with
-          // the compilation log.
-          std::vector<uint32_t> IPVersionVec(Devices.size());
-          std::transform(DeviceVec.begin(), DeviceVec.end(),
-                         IPVersionVec.begin(), [&](ur_device_handle_t d) {
-                           uint32_t ipVersion = 0;
-                           Adapter->call<UrApiKind::urDeviceGetInfo>(
-                               d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-                               &ipVersion, nullptr);
-                           return ipVersion;
-                         });
-          return syclex::detail::OpenCLC_to_SPIRV(*SourceStrPtr, IPVersionVec,
-                                                  BuildOptions, LogPtr);
-        }
-        if (MLanguage == syclex::source_language::spirv) {
-          const auto &SourceBytes = std::get<std::vector<std::byte>>(MSource);
-          std::vector<uint8_t> Result(SourceBytes.size());
-          std::transform(SourceBytes.cbegin(), SourceBytes.cend(),
-                         Result.begin(),
-                         [](std::byte B) { return static_cast<uint8_t>(B); });
-          return Result;
-        }
-        if (MLanguage == syclex::source_language::sycl) {
-          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, MIncludePairs,
-                                               BuildOptions, LogPtr,
-                                               RegisteredKernelNames);
-        }
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "SYCL C++, OpenCL C and SPIR-V are the only supported "
-            "languages at this time");
-      }();
-
-      Adapter->call<UrApiKind::urProgramCreateWithIL>(
-          ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
-          &UrProgram);
-      // program created by urProgramCreateWithIL is implicitly retained.
-      if (UrProgram == nullptr)
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "urProgramCreateWithIL resulted in a null program handle.");
-
-    } // if(!FetchedFromCache)
+    if (!FetchedFromCache)
+      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr,
+                                          RegisteredKernelNames);
 
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
@@ -615,31 +733,14 @@ public:
     }
     Adapter->checkUrResult<errc::build>(Res);
 
-    // Get the number of kernels in the program.
-    size_t NumKernels;
-    Adapter->call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
-        nullptr);
-
-    // Get the kernel names.
-    size_t KernelNamesSize;
-    Adapter->call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
-
-    // semi-colon delimited list of kernel names.
-    std::string KernelNamesStr(KernelNamesSize, ' ');
-    Adapter->call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
-        &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
-        detail::split_string(KernelNamesStr, ';');
+        getKernelNamesFromURProgram(Adapter, UrProgram);
 
     // make the device image and the kernel_bundle_impl
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         UrProgram);
-    device_image_plain DevImg{DevImgImpl};
 
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
@@ -649,7 +750,8 @@ public:
           *SourceStrPtr, UrProgram);
     }
 
-    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices,
+                                                device_image_plain{DevImgImpl},
                                                 KernelNames, MLanguage);
   }
 
@@ -665,7 +767,7 @@ public:
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    std::string AdjustedName = adjust_kernel_name(Name, Language);
+    std::string AdjustedName = adjust_kernel_name(Name, MLanguage);
     if (MSYCLBINBinaries)
       return MSYCLBINBinaries->hasKernel(AdjustedName);
     auto it = std::find(MKernelNames.begin(), MKernelNames.end(), AdjustedName);
@@ -675,12 +777,14 @@ public:
   kernel
   ext_oneapi_get_kernel(const std::string &Name,
                         const std::shared_ptr<kernel_bundle_impl> &Self) {
+    // NOTE: We may have a mix of SYCL 2020 kernels from the program and kernels
+    //       compiled from separate sources.
     if (MKernelNames.empty() && !MSYCLBINBinaries)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "'ext_oneapi_get_kernel' is only available in "
-                            "kernel_bundles successfully built from "
-                            "kernel_bundle<bundle_state:ext_oneapi_source> or "
-                            "from SYCLBIN files.");
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "kernel_bundle does not contain any kernels successfully built from "
+          "kernel_bundle<bundle_state:ext_oneapi_source> or from SYCLBIN "
+          "files.");
 
     std::string AdjustedName = adjust_kernel_name(Name, MLanguage);
     if (!ext_oneapi_has_kernel(Name))
@@ -976,6 +1080,22 @@ public:
                          NewDevImgs.end());
     removeDuplicateImages();
     return true;
+  }
+
+  // Unified way of looking up kernels by name. This implementation works both
+  // for source/SYCLBIN based kernel bundles and regular SYCL 2020 kernel
+  // bundles.
+  kernel get_kernel_internal(const std::string &Name,
+                             const std::shared_ptr<kernel_bundle_impl> &Self) {
+    // If we have the name registered, e.g. if the kernel bundle was built from
+    // source, then pick the kernel from there.
+    if (ext_oneapi_has_kernel(Name))
+      return ext_oneapi_get_kernel(Name, Self);
+
+    // Otherwise, look for the kernel ID and then get the kernel through that.
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(Name);
+    return get_kernel(KernelID, Self);
   }
 
 private:
