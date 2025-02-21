@@ -1549,10 +1549,8 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
     auto KernelName = ExecCG.MKernelName;
-    kernel_id KernelID =
-        sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+    kernel SyclKernel = KernelBundleImplPtr->get_kernel_internal(
+        KernelName, KernelBundleImplPtr);
     SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();

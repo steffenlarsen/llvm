@@ -198,14 +198,13 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
               << getSyclObjImpl(Context).get() << ", " << VecToString(URDevices)
               << ")\n";
   }
-  const sycl_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
-  if (RawImg.BinaryEnd < RawImg.BinaryStart) {
+  if (Img.getBinaryEnd() < Img.getBinaryStart()) {
     throw exception(make_error_code(errc::runtime),
                     "Malformed device program image descriptor");
   }
-  if (RawImg.BinaryEnd == RawImg.BinaryStart) {
+  if (Img.getBinaryEnd() == Img.getBinaryStart()) {
     throw exception(make_error_code(errc::runtime),
                     "Invalid device program image: size is zero");
   }
@@ -220,7 +219,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   ur::DeviceBinaryType Format = Img.getFormat();
 
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
-    Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
+    Format = ur::getBinaryImageFormat(Img.getBinaryStart(), ImgSize);
   // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
   // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
@@ -235,11 +234,11 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   std::vector<const uint8_t *> Binaries(
-      Devices.size(), const_cast<uint8_t *>(RawImg.BinaryStart));
+      Devices.size(), const_cast<uint8_t *>(Img.getBinaryStart()));
   std::vector<size_t> Lengths(Devices.size(), ImgSize);
   ur_program_handle_t Res =
       Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
-          ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
+          ? createSpirvProgram(Ctx, Img.getBinaryStart(), ImgSize)
           : createBinaryProgram(Ctx, Devices, Binaries.data(), Lengths.data(),
                                 ProgMetadata);
 
@@ -596,11 +595,10 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
   uint32_t SuitableImageID = std::numeric_limits<uint32_t>::max();
-  sycl_device_binary DevBin =
-      const_cast<sycl_device_binary>(&BinImage->getRawData());
 
   ur_device_binary_t UrBinary{};
-  UrBinary.pDeviceTargetSpec = getUrDeviceTarget(DevBin->DeviceTargetSpec);
+  UrBinary.pDeviceTargetSpec =
+      getUrDeviceTarget(BinImage->getDeviceTargetSpec());
 
   ur_result_t Error = Adapter->call_nocheck<UrApiKind::urDeviceSelectBinary>(
       URDeviceHandle, &UrBinary,
@@ -615,7 +613,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
-  const char *Target = Img.getRawData().DeviceTargetSpec;
+  const char *Target = Img.getDeviceTargetSpec();
   // TODO replace with extension checks once implemented in UR.
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
     return true;
@@ -1424,11 +1422,6 @@ const char *getArchName(const device &Device) {
   return "unknown";
 }
 
-sycl_device_binary getRawImg(RTDeviceBinaryImage *Img) {
-  return reinterpret_cast<sycl_device_binary>(
-      const_cast<sycl_device_binary>(&Img->getRawData()));
-}
-
 template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
@@ -1456,7 +1449,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
        BinaryCount++) {
     UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
-        getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
+        DeviceFilteredImgs[BinaryCount]->getDeviceTargetSpec());
   }
 
   uint32_t ImgInd = 0;
@@ -1505,7 +1498,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
 
   if (Img) {
     if constexpr (DbgProgMgr > 0) {
-      std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+      std::cerr << "selected device image: " << Img->getImageID() << "\n";
       Img->print();
     }
     return *Img;
@@ -1530,21 +1523,18 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-  std::vector<sycl_device_binary> RawImgs(ImageSet.size());
-  auto ImageIterator = ImageSet.begin();
-  for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
-    RawImgs[i] = reinterpret_cast<sycl_device_binary>(
-        const_cast<sycl_device_binary>(&(*ImageIterator)->getRawData()));
-  uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
 
-  std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
-  for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
+  auto ImageIterator = ImageSet.begin();
+  std::vector<ur_device_binary_t> UrBinaries(ImageSet.size());
+  for (uint32_t BinaryCount = 0; BinaryCount < ImageSet.size();
+       BinaryCount++, ImageIterator++) {
     UrBinaries[BinaryCount].pDeviceTargetSpec =
-        getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
+        getUrDeviceTarget((*ImageIterator)->getDeviceTargetSpec());
   }
 
+  uint32_t ImgInd = 0;
   getSyclObjImpl(Context)->getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), UrBinaries.data(),
       UrBinaries.size(), &ImgInd);
@@ -1553,7 +1543,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   std::advance(ImageIterator, ImgInd);
 
   if constexpr (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
+    std::cerr << "selected device image: " << (*ImageIterator)->getImageID()
               << "\n";
     (*ImageIterator)->print();
   }
@@ -2091,8 +2081,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
-  const sycl_device_binary_struct &RawImg = Img.getRawData();
-  Fname += RawImg.DeviceTargetSpec;
+  Fname += Img.getDeviceTargetSpec();
   if (SequenceID)
     Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
@@ -2158,7 +2147,8 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
   return nullptr;
 }
 
-static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
+bundle_state
+ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
     return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
             (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
@@ -2170,7 +2160,7 @@ static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   // - AOT compiled binary with dependnecies, needs linking.
   // - AOT compiled binary without dependencies.
 
-  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+  const bool IsAOT = IsAOTBinary(BinImage->getDeviceTargetSpec());
 
   if (!IsAOT)
     return sycl::bundle_state::input;
@@ -2555,7 +2545,7 @@ void ProgramManager::bringSYCLDeviceImagesToState(
         break;
       case bundle_state::object: {
         std::vector<device_image_plain> LinkedDevImages =
-            link(ImgWithDeps, getSyclObjImpl(MainImg)->get_devices(),
+            link(ImgWithDeps.getAll(), getSyclObjImpl(MainImg)->get_devices(),
                  /*PropList=*/{});
         // Since only one device image is passed here one output device image is
         // expected
@@ -2675,8 +2665,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
         InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
         bundle_state::object, InputImpl->get_kernel_ids_ptr(), Prog,
-        InputImpl->get_spec_const_data_ref(),
-        InputImpl->get_spec_const_blob_ref());
+        device_image_impl::SpecConstMapT{InputImpl->get_spec_const_data_ref()},
+        std::vector<unsigned char>{InputImpl->get_spec_const_blob_ref()});
 
     std::string CompileOptions;
     applyCompileOptionsFromEnvironment(CompileOptions);
@@ -2701,10 +2691,14 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
   return CompiledImages;
 }
 
-static void mergeImageData(const std::vector<device_image_plain> &Imgs,
-                           std::vector<kernel_id> &KernelIDs,
-                           std::vector<unsigned char> &NewSpecConstBlob,
-                           device_image_impl::SpecConstMapT &NewSpecConstMap) {
+// Returns a merged device binary image, new set of kernel IDs and new
+// specialization constant data.
+static const RTDeviceBinaryImage *
+mergeImageData(const std::vector<device_image_plain> &Imgs,
+               std::vector<kernel_id> &KernelIDs,
+               std::vector<unsigned char> &NewSpecConstBlob,
+               device_image_impl::SpecConstMapT &NewSpecConstMap,
+               std::unique_ptr<DynRTDeviceBinaryImage> &MergedImageStorage) {
   for (const device_image_plain &Img : Imgs) {
     std::shared_ptr<device_image_impl> DeviceImageImpl = getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
@@ -2741,10 +2735,28 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs.begin(), KernelIDs.end(), LessByHash<kernel_id>{});
+
+  // If there is only a single image, use it as the result.
+  if (Imgs.size() == 1)
+  return getSyclObjImpl(Imgs[0])->get_bin_image_ref();
+
+  // Otherwise we create a dynamic image with the merged information.
+  std::vector<const RTDeviceBinaryImage *> BinImgs;
+  BinImgs.reserve(Imgs.size());
+  for (const device_image_plain &Img : Imgs) {
+    auto ImgBinRef = getSyclObjImpl(Img)->get_bin_image_ref();
+    // For some cases, like SYCL kernel compiler binaries, we don't have
+    // binaries. For these we assume no properties associated, so they can be
+    // safely ignored.
+    if (ImgBinRef)
+      BinImgs.push_back(ImgBinRef);
+  }
+  MergedImageStorage = std::make_unique<DynRTDeviceBinaryImage>(BinImgs);
+  return MergedImageStorage.get();
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
+ProgramManager::link(const std::vector<device_image_plain> &Imgs,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
   {
@@ -2753,7 +2765,6 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  const std::vector<device_image_plain> &Imgs = ImgWithDeps.getAll();
   std::vector<ur_program_handle_t> URPrograms;
   URPrograms.reserve(Imgs.size());
   for (const device_image_plain &Img : Imgs)
@@ -2764,18 +2775,18 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   for (const device &Dev : Devs)
     URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
+  // FIXME: Linker options are picked from the first object, but is that safe?
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
-  const device_image_plain &MainImg = ImgWithDeps.getMain();
-  if (LinkOptionsStr.empty()) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(MainImg);
+  const std::shared_ptr<device_image_impl> &FirstImgImpl =
+      getSyclObjImpl(Imgs[0]);
+  if (LinkOptionsStr.empty() && FirstImgImpl->get_bin_image_ref())
     appendLinkOptionsFromImage(LinkOptionsStr,
-                               *(InputImpl->get_bin_image_ref()));
-  }
+                               *(FirstImgImpl->get_bin_image_ref()));
   // Should always come last!
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
-  const context &Context = getSyclObjImpl(MainImg)->get_context();
+
+  const context &Context = FirstImgImpl->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
@@ -2813,7 +2824,9 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
   std::vector<unsigned char> NewSpecConstBlob;
   device_image_impl::SpecConstMapT NewSpecConstMap;
-  mergeImageData(Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap);
+  std::unique_ptr<DynRTDeviceBinaryImage> MergedImageStorage;
+  const RTDeviceBinaryImage *NewBinImg = mergeImageData(
+      Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap, MergedImageStorage);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -2822,17 +2835,18 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     // underlying program disposed of). Protecting from incorrect values by
     // removal of map entries with same handle (obviously invalid entries).
     std::ignore = NativePrograms.erase(LinkedProg);
-    for (const device_image_plain &Img : ImgWithDeps) {
-      NativePrograms.insert(
-          {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
+    for (const device_image_plain &Img : Imgs) {
+      const std::shared_ptr<device_image_impl> &ImgImpl = getSyclObjImpl(Img);
+      if (ImgImpl->get_bin_image_ref())
+        NativePrograms.insert({LinkedProg, ImgImpl->get_bin_image_ref()});
     }
   }
 
-  auto BinImg = getSyclObjImpl(MainImg)->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
-          BinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
-          LinkedProg, std::move(NewSpecConstMap), std::move(NewSpecConstBlob));
+          NewBinImg, Context, Devs, bundle_state::executable,
+          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
+          std::move(NewSpecConstBlob), std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -2868,6 +2882,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   std::vector<unsigned char> SpecConstBlob;
   device_image_impl::SpecConstMapT SpecConstMap;
 
+  std::unique_ptr<DynRTDeviceBinaryImage> MergedImageStorage;
+  const RTDeviceBinaryImage *ResultBinImg = MainInputImpl->get_bin_image_ref();
   if (DevImgWithDeps.hasDeps()) {
     KernelIDs = std::make_shared<std::vector<kernel_id>>();
     // Sort the images to make the order of spec constant values used for
@@ -2878,7 +2894,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                 return getSyclObjImpl(A)->get_bin_image_ref()->getImageID() <
                        getSyclObjImpl(B)->get_bin_image_ref()->getImageID();
               });
-    mergeImageData(SortedImgs, *KernelIDs, SpecConstBlob, SpecConstMap);
+    ResultBinImg = mergeImageData(SortedImgs, *KernelIDs, SpecConstBlob,
+                                  SpecConstMap, MergedImageStorage);
   } else {
     KernelIDs = MainInputImpl->get_kernel_ids_ptr();
     SpecConstBlob = MainInputImpl->get_spec_const_blob_ref();
@@ -2889,9 +2906,10 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       std::move(BinImgs), Context, Devs, &DevImgWithDeps, SpecConstBlob);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
-      MainInputImpl->get_bin_image_ref(), Context, Devs,
+      ResultBinImg, Context, Devs,
       bundle_state::executable, std::move(KernelIDs), ResProgram,
-      std::move(SpecConstMap), std::move(SpecConstBlob));
+      std::move(SpecConstMap), std::move(SpecConstBlob),
+      std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 
@@ -3533,7 +3551,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   // Device image has no compile_target property, check target.
   if (PropIt == PropRange.end()) {
     sycl::backend BE = Dev.get_backend();
-    const char *Target = Img.getRawData().DeviceTargetSpec;
+    const char *Target = Img.getDeviceTargetSpec();
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);

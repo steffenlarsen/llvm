@@ -92,7 +92,7 @@ bool kernel_impl::isBuiltInKernel(const device &Device) const {
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
-  if (MKernelBundleImpl->isInterop())
+  if (MKernelBundleImpl->isInterop() || isCreatedFromSource())
     return;
   auto Devices = MKernelBundleImpl->get_devices();
   if (std::any_of(Devices.begin(), Devices.end(),
@@ -103,7 +103,8 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       sycl::make_error_code(errc::invalid),
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
-      "interoperability function or to query a device built-in kernel");
+      "interoperability function, to query a kernel that was created using the "
+      "kernel compiler extensions or to query a device built-in kernel");
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

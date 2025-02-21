@@ -72,20 +72,18 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
 
   const RTDeviceBinaryImage *DeviceImage = nullptr;
   ur_program_handle_t Program = nullptr;
-  if (KernelCG->getKernelBundle() != nullptr) {
-    // Retrieve the device image from the kernel bundle.
-    auto KernelBundle = KernelCG->getKernelBundle();
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-
-    auto SyclKernel = detail::getSyclObjImpl(
-        KernelBundle->get_kernel(KernelID, KernelBundle));
-
-    DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = SyclKernel->getDeviceImage()->get_ur_program_ref();
-  } else if (KernelCG->MSyclKernel != nullptr) {
+  if (KernelCG->MSyclKernel != nullptr) {
     DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
     Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
+  } else if (KernelCG->getKernelBundle() != nullptr) {
+    // Retrieve the device image from the kernel bundle.
+    auto KernelBundle = KernelCG->getKernelBundle();
+    auto SyclKernel =
+        KernelBundle->get_kernel_internal(KernelName, KernelBundle);
+    auto SyclKernelImpl = getSyclObjImpl(SyclKernel);
+
+    DeviceImage = SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
+    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else {
     auto ContextImpl = Queue->getContextImplPtr();
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);

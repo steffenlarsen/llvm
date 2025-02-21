@@ -121,6 +121,7 @@ public:
     size_t size() const { return std::distance(begin(), end()); }
     bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
+    friend class DynRTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
@@ -232,13 +233,30 @@ public:
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getMiscProperties() const { return Misc; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
     return ImageId;
   }
 
+  const char *getDeviceTargetSpec() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->DeviceTargetSpec;
+  }
+
+  const unsigned char *getBinaryStart() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->BinaryStart;
+  }
+
+  const unsigned char *getBinaryEnd() const noexcept {
+    assert(Bin && "binary image data not set");
+    return Bin->BinaryEnd;
+  }
+
 protected:
+  void init();
   void init(sycl_device_binary Bin);
   sycl_device_binary get() const { return Bin; }
 
@@ -258,6 +276,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange Misc;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
@@ -267,10 +286,14 @@ private:
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
-// data in destructor.
+// data and associated metadata in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
   DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
+
+  // Merge ctor
+  DynRTDeviceBinaryImage(const std::vector<const RTDeviceBinaryImage *> &Imgs);
+
   ~DynRTDeviceBinaryImage() override;
 
   void print() const override {
@@ -278,7 +301,12 @@ public:
     std::cerr << "    DYNAMICALLY CREATED\n";
   }
 
+  static DynRTDeviceBinaryImage
+  merge(const std::vector<RTDeviceBinaryImage *> &Imgs);
+
 protected:
+  DynRTDeviceBinaryImage();
+
   std::unique_ptr<char[]> Data;
 };
 

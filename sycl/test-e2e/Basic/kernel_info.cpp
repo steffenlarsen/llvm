@@ -55,7 +55,8 @@ int main() {
   auto refErrMsg =
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
-      "interoperability function or to query a device built-in kernel";
+      "interoperability function, to query a kernel that was created using the "
+      "kernel compiler extensions or to query a device built-in kernel";
   auto refErrc = errc::invalid;
   auto getInfoNumArgsFunc = [&]() -> cl_uint {
     return krn.get_info<info::kernel::num_args>();

@@ -416,9 +416,13 @@ event handler::finalize() {
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
-      // Make sure implicit non-interop kernel bundles have the kernel
+      // Make sure implicit non-interop kernel bundles have the kernel.
+      // Additionally, we skip if the kernel bundle has the name registered by
+      // its string name, as this indicates that the bundle was created from
+      // source.
       if (!KernelBundleImpPtr->isInterop() &&
-          !impl->isStateExplicitKernelBundle()) {
+          !impl->isStateExplicitKernelBundle() &&
+          !KernelBundleImpPtr->ext_oneapi_has_kernel(MKernelName.c_str())) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
