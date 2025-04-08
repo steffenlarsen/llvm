@@ -714,6 +714,9 @@ defm : DemangledNativeBuiltin<"__spirv_ConvertHandleToImageINTEL", OpenCL_std, B
 defm : DemangledNativeBuiltin<"__spirv_ConvertHandleToSamplerINTEL", OpenCL_std, BindlessINTEL, 1, 1, OpConvertHandleToSamplerINTEL>;
 defm : DemangledNativeBuiltin<"__spirv_ConvertHandleToSampledImageINTEL", OpenCL_std, BindlessINTEL, 1, 1, OpConvertHandleToSampledImageINTEL>;
 
+// SPV_INTEL_ternary_bitwise_function builtin records:
+defm : DemangledNativeBuiltin<"__spirv_BitwiseFunctionINTEL", OpenCL_std, TernaryBitwiseFunctionINTEL, 4, 4, OpBitwiseFunctionINTEL>;
+
 //===----------------------------------------------------------------------===//
 // Class defining a work/sub group builtin that should be translated into a
 // SPIR-V instruction using the defined properties.
