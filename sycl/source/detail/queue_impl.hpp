@@ -67,6 +67,12 @@ constexpr CUDAContextT DefaultContextType = CUDAContextT::custom;
 
 enum QueueOrder { Ordered, OOO };
 
+class NestedCallsTracker {
+public:
+  NestedCallsTracker();
+  ~NestedCallsTracker();
+};
+
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
@@ -377,7 +383,7 @@ public:
 
     event ResEvent =
         submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, &SubmitInfo);
     return discard_or_return(ResEvent);
   }
 
@@ -387,7 +393,7 @@ public:
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
-                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
+                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, &SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -859,7 +865,8 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
-                    bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+                    bool IsTopCodeLoc,
+                    const SubmissionInfo *SubmitInfo = nullptr);
 #endif
 
   /// Performs command group submission to the queue.
@@ -876,7 +883,7 @@ protected:
                     const std::shared_ptr<queue_impl> &Self,
                     queue_impl *SecondaryQueue, bool CallerNeedsEvent,
                     const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const SubmissionInfo &SubmitInfo);
+                    const SubmissionInfo *SubmitInfo = nullptr);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.

@@ -81,7 +81,19 @@ struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
 public:
+  // In some rare cases we cannot use the thread-local global allocation, as
+  // some paths (eg. fallback assert) may want to do post-processing submission.
+  struct AuxiliaryAllocToken {};
+
   SubmissionInfo();
+  SubmissionInfo(AuxiliaryAllocToken);
+  ~SubmissionInfo();
+
+  SubmissionInfo(SubmissionInfo &&);
+  SubmissionInfo operator=(SubmissionInfo &&);
+
+  SubmissionInfo(const SubmissionInfo &) = delete;
+  SubmissionInfo &operator=(const SubmissionInfo &) = delete;
 
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
@@ -93,7 +105,7 @@ public:
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
 
 private:
-  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
+  SubmissionInfoImpl *impl = nullptr;
 };
 } // namespace detail
 
@@ -3931,12 +3943,16 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     });
   };
 
-  CopierEv = Self.submit_with_event<true>(
-      sycl::ext::oneapi::experimental::empty_properties_t{}, CopierCGF,
-      SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event<true>(
-      sycl::ext::oneapi::experimental::empty_properties_t{}, CheckerCGF,
-      SecondaryQueue, CodeLoc);
+  tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  SubmissionInfo AuxSI{SubmissionInfo::AuxiliaryAllocToken{}};
+  if (SecondaryQueue)
+    AuxSI.SecondaryQueue() = getSyclObjImpl(*SecondaryQueue);
+  CopierEv = Self.submit_with_event_impl(type_erased_cgfo_ty{CopierCGF}, AuxSI,
+                                         TlsCodeLocCapture.query(),
+                                         TlsCodeLocCapture.isToplevel());
+  CheckerEv = Self.submit_with_event_impl(type_erased_cgfo_ty{CheckerCGF},
+                                          AuxSI, TlsCodeLocCapture.query(),
+                                          TlsCodeLocCapture.isToplevel());
 
   return CheckerEv;
 }

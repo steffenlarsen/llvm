@@ -21,8 +21,52 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-SubmissionInfo::SubmissionInfo()
-    : impl{std::make_shared<SubmissionInfoImpl>()} {}
+
+#ifndef NDEBUG
+thread_local bool GlobalSubmissionInfoImplIsInUse = false;
+#endif
+
+alignas(SubmissionInfoImpl) thread_local char GlobalSubmissionInfoImplStorage
+    [sizeof(SubmissionInfoImpl)];
+
+SubmissionInfo::SubmissionInfo() {
+#ifndef NDEBUG
+  // Do a nested submit check to avoid a false-positive in the double-usage
+  // check. When NDEBUG set, we can let this check happen further down the
+  // chain.
+  NestedCallsTracker{};
+  assert(!GlobalSubmissionInfoImplIsInUse &&
+         "Only a single submission info should be in use per thread.");
+  GlobalSubmissionInfoImplIsInUse = true;
+#endif
+
+  // Create impl from GlobalSubmissionInfoImplStorage.
+  impl = new (GlobalSubmissionInfoImplStorage) SubmissionInfoImpl();
+}
+
+SubmissionInfo::SubmissionInfo(SubmissionInfo::AuxiliaryAllocToken)
+    : impl{new SubmissionInfoImpl()} {}
+
+SubmissionInfo::~SubmissionInfo() {
+  if (!impl)
+    return;
+
+  // For now we need to check if we are using an auxiliary allocation, but once
+  // those are gone we can assume it's always holding
+  // GlobalSubmissionInfoImplStorage.
+  if (reinterpret_cast<uintptr_t>(impl) ==
+      reinterpret_cast<uintptr_t>(&GlobalSubmissionInfoImplStorage)) {
+#ifndef NDEBUG
+    assert(GlobalSubmissionInfoImplIsInUse);
+    GlobalSubmissionInfoImplIsInUse = false;
+#endif
+    impl->~SubmissionInfoImpl();
+    return;
+  }
+
+  // Delete the auxiliary allocation.
+  delete impl;
+}
 
 optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
   return impl->MPostProcessorFunc;
@@ -199,12 +243,18 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 /// TODO: Unused. Remove these when ABI-break window is open.
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
+  return submit_with_event_impl(
+      std::move(CGH),
+      detail::SubmissionInfo{detail::SubmissionInfo::AuxiliaryAllocToken{}},
+      CodeLoc, true);
 }
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc,
                          bool IsTopCodeLoc) {
-  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
+  return submit_with_event_impl(
+      std::move(CGH),
+      detail::SubmissionInfo{detail::SubmissionInfo::AuxiliaryAllocToken{}},
+      CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
