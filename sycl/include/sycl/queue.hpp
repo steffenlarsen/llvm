@@ -74,12 +74,19 @@ struct SubmissionInfoImpl;
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
+  ~SubmissionInfo();
+
+  SubmissionInfo(SubmissionInfo &&);
+  SubmissionInfo operator=(SubmissionInfo &&);
+
+  SubmissionInfo(const SubmissionInfo &) = delete;
+  SubmissionInfo &operator=(const SubmissionInfo &) = delete;
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
 
 private:
-  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
+  SubmissionInfoImpl *impl = nullptr;
 };
 } // namespace detail
 

@@ -26,23 +26,22 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
 thread_local bool NestedCallsDetector = false;
-class NestedCallsTracker {
-public:
-  NestedCallsTracker() {
-    if (NestedCallsDetector)
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Calls to sycl::queue::submit cannot be nested. Command group "
-          "function objects should use the sycl::handler API instead.");
-    NestedCallsDetector = true;
-  }
 
-  ~NestedCallsTracker() { NestedCallsDetector = false; }
-};
+NestedCallsTracker::NestedCallsTracker() {
+  if (NestedCallsDetector)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Calls to sycl::queue::submit cannot be nested. Command group "
+        "function objects should use the sycl::handler API instead.");
+  NestedCallsDetector = true;
+}
+
+NestedCallsTracker::~NestedCallsTracker() { NestedCallsDetector = false; }
 
 static std::vector<ur_event_handle_t>
 getUrEvents(const std::vector<sycl::event> &DepEvents) {
@@ -315,7 +314,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
+                              const SubmissionInfo *SubmitInfo) {
   handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -337,7 +336,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  HandlerImpl->MEventMode =
+      SubmitInfo ? SubmitInfo->EventMode()
+                 : ext::oneapi::experimental::event_mode_enum::none;
 
   auto Event = finalizeHandler(Handler);
 
@@ -352,8 +353,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
-    event FlushEvent = submit_impl(CGF, Self, /*CallerNeedsEvent*/ true, Loc,
-                                   IsTopCodeLoc, {});
+    event FlushEvent =
+        submit_impl(CGF, Self, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc);
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }

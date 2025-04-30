@@ -21,8 +21,39 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-SubmissionInfo::SubmissionInfo()
-    : impl{std::make_shared<SubmissionInfoImpl>()} {}
+
+#ifndef NDEBUG
+thread_local bool GlobalSubmissionInfoImplIsInUse = false;
+#endif
+
+alignas(SubmissionInfoImpl) thread_local char GlobalSubmissionInfoImplStorage
+    [sizeof(SubmissionInfoImpl)];
+
+SubmissionInfo::SubmissionInfo() {
+#ifndef NDEBUG
+  // Do a nested submit check to avoid a false-positive in the double-usage
+  // check. When NDEBUG set, we can let this check happen further down the
+  // chain.
+  NestedCallsTracker{};
+  assert(!GlobalSubmissionInfoImplIsInUse &&
+         "Only a single submission info should be in use per thread.");
+  GlobalSubmissionInfoImplIsInUse = true;
+#endif
+
+  // Create impl from GlobalSubmissionInfoImplStorage.
+  impl = new (GlobalSubmissionInfoImplStorage) SubmissionInfoImpl();
+}
+
+SubmissionInfo::~SubmissionInfo() {
+  if (!impl)
+    return;
+
+#ifndef NDEBUG
+  assert(GlobalSubmissionInfoImplIsInUse);
+  GlobalSubmissionInfoImplIsInUse = false;
+#endif
+  impl->~SubmissionInfoImpl();
+}
 
 ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
   return impl->MEventMode;
