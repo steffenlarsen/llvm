@@ -106,8 +106,7 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, nullptr,
-                             CodeLoc);
+  return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 } // namespace detail
 

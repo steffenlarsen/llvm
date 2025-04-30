@@ -66,7 +66,7 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
-inline event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &,
                                  const detail::code_location &);
 
 struct SubmissionInfoImpl;
@@ -74,9 +74,6 @@ struct SubmissionInfoImpl;
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
-
-  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
-  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
@@ -380,9 +377,15 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(
-        sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+    try {
+      return submit_with_event(
+          sycl::ext::oneapi::experimental::empty_properties_t{},
+          detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+    } catch (...) {
+      return SecondaryQueue.submit_with_event(
+          sycl::ext::oneapi::experimental::empty_properties_t{},
+          detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3540,28 +3543,6 @@ private:
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
-
-  /// Submits a command group function object to the queue, in order to be
-  /// scheduled for execution on the device.
-  ///
-  /// \param Props is a property list with submission properties.
-  /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueuePtr is a pointer to the secondary queue.
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object for the submitted command group.
-  template <typename PropertiesT>
-  event submit_with_event(
-      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      queue *SecondaryQueuePtr,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
-    ProcessSubmitProperties(Props, SI);
-    if (SecondaryQueuePtr)
-      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
-    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
-                                  TlsCodeLocCapture.isToplevel());
-  }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.

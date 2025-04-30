@@ -24,15 +24,6 @@ namespace detail {
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
 
-std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
-  return impl->MSecondaryQueue;
-}
-
-const std::shared_ptr<detail::queue_impl> &
-SubmissionInfo::SecondaryQueue() const {
-  return impl->MSecondaryQueue;
-}
-
 ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
   return impl->MEventMode;
 }
