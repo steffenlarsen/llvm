@@ -1,10 +1,11 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
+// RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero adapter to avoid releasing memory

@@ -1,5 +1,6 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // REQUIRES: windows
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
+// RUN: %{build} -o %t.out
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if fpga %{ --check-prefix=CHECK-ACC %}
 //

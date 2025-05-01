@@ -1,5 +1,6 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // REQUIRES: windows
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
+// RUN: %{build} -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero adapter to avoid releasing memory

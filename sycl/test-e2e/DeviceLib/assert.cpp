@@ -1,5 +1,6 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // REQUIRES: (cpu || cuda || hip ) && linux
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
+// RUN: %{build} -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves

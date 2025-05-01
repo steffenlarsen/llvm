@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -6,7 +7,6 @@
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
-#define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>
 

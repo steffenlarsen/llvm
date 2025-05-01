@@ -34,7 +34,7 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables warning diagnostic issued when calling `device::has(aspect::image)`
   and `platform::has(aspect::image)`.
 
-- **SYCL_FALLBACK_ASSERT**
+- **SYCL_FALLBACK_ASSERT (removed)**
 
   Defining as non-zero enables the fallback assert feature even on devices
   without native support. Be aware that this will add some overhead that is

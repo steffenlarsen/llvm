@@ -390,11 +390,6 @@ bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
       F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
     return false;
 
-  if (F.getName().contains("__sycl_service_kernel__")) {
-    F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
-    return false;
-  }
-
   // Skip referenced-indirectly function as we insert access to shared
   // local memory (SLM) __TsanLaunchInfo and access to SLM in
   // referenced-indirectly function isn't supported yet in
