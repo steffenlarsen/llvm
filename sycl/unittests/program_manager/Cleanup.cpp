@@ -30,12 +30,6 @@ public:
 
   std::unordered_multimap<sycl::detail::KernelNameStrT,
                           sycl::detail::RTDeviceBinaryImage *> &
-  getServiceKernels() {
-    return m_ServiceKernels;
-  }
-
-  std::unordered_multimap<sycl::detail::KernelNameStrT,
-                          sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;
   }
@@ -155,8 +149,7 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
   sycl::unittest::MockPropertySet PropSet;
 
   std::initializer_list<std::string> KernelNames{
-      generateRefName(ImageId, "Kernel"),
-      generateRefName(ImageId, "__sycl_service_kernel__")};
+      generateRefName(ImageId, "Kernel")};
   const std::vector<std::string> ExportedSymbols{
       generateRefName(ImageId, "Exported")};
   const std::vector<std::string> ImportedSymbols{
@@ -272,15 +265,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
         << Comment;
   }
   EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-  {
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("A", "__sycl_service_kernel__")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("B", "__sycl_service_kernel__")) > 0)
-        << Comment;
-  }
   {
     EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
     EXPECT_TRUE(PM.getExportedSymbolImages().count(

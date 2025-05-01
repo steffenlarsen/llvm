@@ -69,7 +69,6 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
@@ -351,13 +350,10 @@ public:
   event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc, bool IsTopCodeLoc,
-               const SubmitPostProcessF *PostProcess = nullptr) {
+               const detail::code_location &Loc, bool IsTopCodeLoc) {
     event ResEvent;
     SubmissionInfo SI{};
     SI.SecondaryQueue() = SecondQueue;
-    if (PostProcess)
-      SI.PostProcessorFunc() = *PostProcess;
     return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
   }
 
@@ -804,40 +800,11 @@ protected:
     return EventRet;
   }
 
-  template <typename HandlerType = handler>
-  event finalizeHandlerPostProcess(
-      HandlerType &Handler,
-      const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    bool IsKernel = Handler.getType() == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data());
-
-    auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
-                            : finalizeHandlerOutOfOrder(Handler);
-
-    auto &PostProcess = *PostProcessorFunc;
-
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-
-    return Event;
-  }
-
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler,
-                        const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    if (PostProcessorFunc) {
-      return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
-    } else {
-      return MIsInorder ? finalizeHandlerInOrder(Handler)
-                        : finalizeHandlerOutOfOrder(Handler);
-    }
+  event finalizeHandler(HandlerType &Handler) {
+    return MIsInorder ? finalizeHandlerInOrder(Handler)
+                      : finalizeHandlerOutOfOrder(Handler);
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

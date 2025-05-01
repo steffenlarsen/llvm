@@ -1,7 +1,8 @@
+// REQUIRES: aspect-ext_oneapi_native_assert
 // REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
 // REQUIRES: linux && level_zero
 
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test still fails after GPU driver update on Linux. Temporary marking it

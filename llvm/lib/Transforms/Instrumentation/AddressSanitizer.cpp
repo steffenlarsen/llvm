@@ -1376,11 +1376,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
           F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
         continue;
 
-      if (F.getName().contains("__sycl_service_kernel__")) {
-        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
-        continue;
-      }
-
       // Skip referenced-indirectly function as we insert access to shared
       // local memory (SLM) __AsanLaunchInfo and access to SLM in
       // referenced-indirectly function isn't supported yet in

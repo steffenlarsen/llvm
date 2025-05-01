@@ -1556,9 +1556,6 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
         KernelId != m_KernelName2KernelIDs.end()) {
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
                                     ContextImpl, DeviceImpl);
-    } else {
-      Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, ContextImpl,
-                                    DeviceImpl);
     }
   }
 
@@ -2031,15 +2028,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
     auto name = EntriesIt->GetName();
 
-    // Skip creating unique kernel ID if it is a service kernel.
-    // SYCL service kernels are identified by having
-    // __sycl_service_kernel__ in the mangled name, primarily as part of
-    // the namespace of the name type.
-    if (std::strstr(name, "__sycl_service_kernel__")) {
-      m_ServiceKernels.insert(std::make_pair(name, Img.get()));
-      continue;
-    }
-
     // Skip creating unique kernel ID if it is an exported device
     // function. Exported device functions appear in the offload entries
     // among kernels, but are identifiable by being listed in properties.
@@ -2191,12 +2179,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-
-      // Drop entry for service kernel
-      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->GetName());
-        continue;
-      }
 
       // Exported device functions won't have a kernel ID
       if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=

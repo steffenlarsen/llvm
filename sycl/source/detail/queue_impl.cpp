@@ -339,7 +339,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  auto Event = finalizeHandler(Handler);
 
   addEvent(Event);
 
@@ -395,7 +395,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  auto Event = finalizeHandler(Handler);
 
   addEvent(Event);
 
