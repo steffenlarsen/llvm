@@ -8,6 +8,9 @@ add_library (ur_mock_headers SHARED
 
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     set_target_properties(ur_mock_headers PROPERTIES DEBUG_POSTFIX d)
+    if (SYCL_USE_MSVC_CRT_DEBUG_DLL)
+        set_target_properties(ur_mock_headers PROPERTIES RELEASE_POSTFIX d)
+    endif()
 endif()
 
 target_include_directories(ur_mock_headers

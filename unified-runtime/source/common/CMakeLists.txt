@@ -74,7 +74,7 @@ else()
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
 
   if (CMAKE_SYSTEM_NAME STREQUAL Windows)
-    if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug OR SYCL_USE_MSVC_CRT_DEBUG_DLL)
       set(UMF_USE_DEBUG_POSTFIX ON)
     endif()
   endif()
@@ -136,4 +136,7 @@ target_link_libraries(ur_umf INTERFACE
 
 if (CMAKE_SYSTEM_NAME STREQUAL Windows)
     set_target_properties(ur_umf PROPERTIES DEBUG_POSTFIX d)
+    if (SYCL_USE_MSVC_CRT_DEBUG_DLL)
+        set_target_properties(ur_umf PROPERTIES RELEASE_POSTFIX d)
+    endif()
 endif()

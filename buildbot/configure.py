@@ -167,6 +167,8 @@ def do_configure(args, passthrough_args):
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
 
+    debug_crt_dll = "ON" if args.use_debug_crt_dll else "OFF"
+
     # lld is needed on Windows or when building AMDGPU
     if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
         llvm_enable_projects += ";lld"
@@ -207,6 +209,7 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
+        "-DSYCL_USE_MSVC_CRT_DEBUG_DLL={}".format(debug_crt_dll),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
@@ -422,6 +425,9 @@ def main():
     )
     parser.add_argument(
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
+    )
+    parser.add_argument(
+        "--use-debug-crt-dll", action="store_true", help="Link libraries with MSVC debug dll in release mode."
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 

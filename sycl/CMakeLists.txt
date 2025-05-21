@@ -11,9 +11,17 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
+option(SYCL_USE_MSVC_CRT_DEBUG_DLL "Dynamically links the SYCL runtime libraries with the debug MSVC URT" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
+endif()
+
+if (SYCL_USE_MSVC_CRT_DEBUG_DLL)
+  if (NOT CMAKE_BUILD_TYPE STREQUAL Release)
+    message(WARNING "SYCL_USE_MSVC_CRT_DEBUG_DLL only has an effect on Release builds")
+  endif ()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL" PARENT_SCOPE)
 endif()
 
 if (SYCL_ENABLE_PLUGINS)
