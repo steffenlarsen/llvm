@@ -99,6 +99,7 @@
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
+#include <sycl/ext/oneapi/experimental/packed_4bit_integer/types.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>

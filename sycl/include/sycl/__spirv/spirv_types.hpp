@@ -165,6 +165,7 @@ inline namespace _V1 {
 namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _BitInt(Bits);
+template <int Bits> using ap_uint = _BitInt(Bits);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

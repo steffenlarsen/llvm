@@ -64,6 +64,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fp_max_error
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_int4
 
 // CHECK-CPU: llvm-spirv{{.*}}-spirv-ext=-all
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_add
@@ -100,3 +101,4 @@
 // CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error
+// CHECK-CPU-SAME:,+SPV_INTEL_int4

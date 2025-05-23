@@ -1557,6 +1557,16 @@ public:
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_int4) {
+      // TODO: Implement support check in UR instead.
+      using arch = sycl::ext::oneapi::experimental::architecture;
+      const arch SupportedArchs[] = {
+          arch::intel_gpu_pvc, arch::intel_gpu_bmg_g21, arch::intel_gpu_lnl_m,
+          arch::intel_gpu_ptl_h, arch::intel_gpu_ptl_u};
+      return std::any_of(
+          std::begin(SupportedArchs), std::end(SupportedArchs),
+          [=](const auto Arch) { return this->extOneapiArchitectureIs(Arch); });
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
