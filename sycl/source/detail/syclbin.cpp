@@ -278,13 +278,17 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     NumNativeBinaries += AM.NativeDeviceCodeImages.size();
   }
   DeviceBinaries.reserve(NumJITBinaries + NumNativeBinaries);
-  JITDeviceBinaryImages.reserve(NumJITBinaries);
-  NativeDeviceBinaryImages.reserve(NumNativeBinaries);
+  AbstractModules.reserve(ParsedSYCLBIN.AbstractModules.size());
 
   for (SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules) {
     // Construct properties from SYCLBIN metadata.
     std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
         convertAbstractModuleProperties(AM);
+
+    AbstractModuleContent &AMContent = AbstractModules.emplace_back();
+    AMContent.JITDeviceBinaryImages.reserve(AM.IRModules.size());
+    AMContent.NativeDeviceBinaryImages.reserve(
+        AM.NativeDeviceCodeImages.size());
 
     for (SYCLBIN::IRModule &IRM : AM.IRModules) {
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
@@ -307,7 +311,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      JITDeviceBinaryImages.emplace_back(&DeviceBinary);
+      AMContent.JITDeviceBinaryImages.emplace_back(&DeviceBinary);
     }
 
     for (const SYCLBIN::NativeDeviceCodeImage &NDCI :
@@ -342,7 +346,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      NativeDeviceBinaryImages.emplace_back(&DeviceBinary);
+      AMContent.NativeDeviceBinaryImages.emplace_back(&DeviceBinary);
     }
   }
 }

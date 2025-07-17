@@ -206,7 +206,8 @@ public:
   // Matches sycl::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      std::vector<device> Devs, const property_list &PropList, private_tag)
+      std::vector<device> Devs, const property_list &PropList, bool UseFastLink,
+      private_tag)
       : MDevices(std::move(Devs)), MState(bundle_state::executable) {
     if (MDevices.empty())
       throw sycl::exception(make_error_code(errc::invalid),

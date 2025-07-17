@@ -312,7 +312,15 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
-  return detail::kernel_bundle_impl::create(ObjectBundles, Devs, PropList);
+  return detail::kernel_bundle_impl::create(ObjectBundles, Devs, PropList,
+                                            /*UseFastLink=*/false);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, bool UseFastLink) {
+  return detail::kernel_bundle_impl::create(ObjectBundles, Devs,
+                                            /*PropList=*/{}, UseFastLink);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>

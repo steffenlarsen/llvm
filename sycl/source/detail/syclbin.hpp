@@ -152,8 +152,13 @@ private:
       BinaryPropertySets;
 
   std::vector<sycl_device_binary_struct> DeviceBinaries;
-  std::vector<RTDeviceBinaryImage> JITDeviceBinaryImages;
-  std::vector<RTDeviceBinaryImage> NativeDeviceBinaryImages;
+
+  struct AbstractModuleContent {
+    std::vector<RTDeviceBinaryImage> JITDeviceBinaryImages;
+    std::vector<RTDeviceBinaryImage> NativeDeviceBinaryImages;
+  };
+
+  std::vector<AbstractModuleContent> AbstractModules;
 };
 
 } // namespace detail

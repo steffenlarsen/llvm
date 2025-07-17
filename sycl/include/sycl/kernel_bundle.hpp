@@ -947,6 +947,10 @@ __SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList);
+
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+          const std::vector<device> &Devs, bool UseFastLink);
 } // namespace detail
 
 /// \returns a new kernel_bundle which contains the device images from the
@@ -1023,6 +1027,7 @@ namespace ext::oneapi::experimental {
 namespace detail {
 struct create_bundle_from_source_props;
 struct build_source_bundle_props;
+struct link_bundle_props;
 } // namespace detail
 
 /////////////////////////
@@ -1104,6 +1109,24 @@ template <>
 struct is_property_key_of<registered_names_key,
                           detail::build_source_bundle_props> : std::true_type {
 };
+
+/////////////////////////
+// PropertyT syclex::fast_link
+/////////////////////////
+struct fast_link
+    : detail::run_time_property_key<fast_link, detail::PropKind::FastLink> {
+  bool value;
+  constexpr fast_link() : fast_link(true) {}
+  constexpr fast_link(bool &UseFastLink) : value{UseFastLink} {}
+};
+using fast_link_key = fast_link;
+
+template <>
+struct is_property_key_of<fast_link_key, detail::link_bundle_props>
+    : std::true_type {};
+
+constexpr fast_link use_fast_link{true};
+constexpr fast_link no_fast_link{false};
 
 namespace detail {
 // forward decls
@@ -1326,6 +1349,51 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {
   return build<PropertyListT>(SourceKB, SourceKB.get_devices(), props);
 }
+
+/////////////////////////
+// syclex::link() with extension properties
+/////////////////////////
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &objectBundle,
+     PropertyListT propList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
+  bool UseFastLink = [&propList]() {
+    if constexpr (propList.has_property<fast_link>())
+      return propList.get_property<fast_link>().value;
+    return false;
+  }();
+
+  detail::KernelBundleImplPtr Impl =
+      detail::link_impl(ObjectBundles, UniqueDevices, UseFastLink);
+  return detail::createSyclObjFromImpl<
+      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
+}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &objectBundles,
+     PropertyListT propList = {}) {}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &objectBundle,
+     const std::vector<device> &devs, PropertyListT propList = {}) {}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &objectBundles,
+     const std::vector<device> &devs, PropertyListT propList = {}) {}
 
 } // namespace ext::oneapi::experimental
 
