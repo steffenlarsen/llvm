@@ -17,16 +17,23 @@ ordinal: "99"
 type: enum
 extend: true
 typed_etors: true
-desc: "Extension enums to $x_device_info_t to support inter-process communicable memory handles."
+desc: "Extension enums to $x_device_info_t to support inter-process communicable memory and event handles."
 name: $x_device_info_t
 etors:
     - name: IPC_MEMORY_SUPPORT_EXP
       value: "0x2023"
       desc: "[$x_bool_t] returns true if the device supports inter-process communicable memory handles"
+    - name: IPC_EVENT_SUPPORT_EXP
+      value: "0x2024"
+      desc: "[$x_bool_t] returns true if the device supports inter-process communicable event handles"
 --- #--------------------------------------------------------------------------
 type: handle
 desc: "Handle of inter-process communicable memory"
 name: "$x_exp_ipc_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of inter-process communicable event"
+name: "$x_exp_ipc_event_handle_t"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Gets an inter-process memory handle for a pointer to device USM memory"
