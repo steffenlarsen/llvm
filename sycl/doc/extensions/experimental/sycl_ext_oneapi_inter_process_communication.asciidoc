@@ -106,13 +106,18 @@ implementation supports.
 namespace sycl {
 enum class aspect {
   ...
-  ext_oneapi_ipc_memory
+  ext_oneapi_ipc_memory,
+  ext_oneapi_ipc_event
 }
 }
 ----
 
-If a SYCL device has this aspect, that device supports the `get` and `open`
-functions specified in the following section.
+If a SYCL device has the `ext_oneapi_ipc_memory` aspect, that device supports
+the `ipc_memory::get` and `ipc_memory::open` functions specified in the
+<<_inter_process_communicable_memory>> section. Likewise, if a SYCL device has
+the `ext_oneapi_ipc_event` aspect, that device supports the `ipc_event::get` and
+`ipc_event::open` functions specified in the
+<<_inter_process_communicable_event>> section.
 
 
 === Inter-process communicable memory
@@ -330,6 +335,29 @@ return ipc_memory::close(ptr, ctxt);
 ----
 
 |====
+
+
+=== Inter-process communicable event
+
+The interfaces for events that can be used for communication between processes
+offer both new interfaces to exsting APIs and new free functions.
+
+==== Free functions
+
+This extension adds new free functions under the `ipc_event` experimental
+namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc_event {
+
+using handle_data_t = std::vector<std::byte>;
+
+handle_data_t get(const sycl::event &ipc_event);
+
+void *open(const handle_data_t &handle_data, const sycl::context &ctx);
+
+}
+```
 
 
 == Issues
