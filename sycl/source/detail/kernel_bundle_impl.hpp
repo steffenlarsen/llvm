@@ -114,12 +114,11 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
 }
 
 inline void
-ThrowIfConflictingKernels(const std::vector<device_image_plain> &DevImages) {
+ThrowIfConflictingKernels(device_images_range DevImages) {
   std::set<std::string_view, std::less<>> SeenKernelNames;
   std::set<std::string_view, std::less<>> Conflicts;
-  for (const device_image_plain &DevImage : DevImages) {
-    const KernelNameSetT &KernelNames =
-        getSyclObjImpl(DevImage)->getKernelNames();
+  for (const device_image_impl &DevImage : DevImages) {
+    const KernelNameSetT &KernelNames = DevImage.getKernelNames();
     std::vector<std::string_view> Intersect;
     std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
                           KernelNames.begin(), KernelNames.end(),
@@ -513,9 +512,7 @@ public:
         // In dynamic linking, AOT binaries count as results as well.
         LinkedResults.insert(LinkedResults.end(), AOTImgs.begin(),
                              AOTImgs.end());
-        sycl::span<device_image_plain, dynamic_extent> LinkedResultsSpan(
-            LinkedResults.data(), LinkedResults.size());
-        detail::ProgramManager::getInstance().dynamicLink(LinkedResultsSpan);
+        detail::ProgramManager::getInstance().dynamicLink(LinkedResults);
       }
 
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
@@ -536,12 +533,9 @@ public:
                   }))
         continue;
 
-      const std::vector<device_image_plain> &AllDevImgs =
-          DeviceImageWithDeps->getAll();
-      sycl::span<const device_image_plain> AllDevImgsSpan(AllDevImgs);
       std::vector<device_image_plain> LinkedResults =
-          detail::ProgramManager::getInstance().link(AllDevImgsSpan, MDevices,
-                                                     PropList);
+          detail::ProgramManager::getInstance().link(
+              DeviceImageWithDeps->getAll(), MDevices, PropList);
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                            LinkedResults.end());
       MUniqueDeviceImages.insert(MUniqueDeviceImages.end(),

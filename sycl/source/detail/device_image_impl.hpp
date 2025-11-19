@@ -1354,6 +1354,7 @@ private:
 using device_images_iterator =
     variadic_iterator<device_image_plain,
                       std::vector<device_image_plain>::const_iterator,
+                      const device_image_plain *,
                       std::set<device_image_impl *>::const_iterator>;
 class device_images_range : public iterator_range<device_images_iterator> {
 private:
@@ -1361,6 +1362,21 @@ private:
 
 public:
   using Base::Base;
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_program_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_program_handle_t> ProgramHandles;
+    ProgramHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(ProgramHandles),
+                   [](device_image_impl &Img) { return Img.get_ur_program(); });
+    return ProgramHandles;
+  }
 };
 
 } // namespace detail
